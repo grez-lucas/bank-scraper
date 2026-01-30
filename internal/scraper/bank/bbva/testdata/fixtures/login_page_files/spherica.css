@@ -1,0 +1,1045 @@
+:root{
+	--blurred-color:#46536D;
+	--medium-font-zise:15px;
+	--color-primary-title: #070E46;
+    --color-border-input: #46536D;
+    --color-dark-blue: #00288f;
+    --color-primary-light: #F7F8F8;
+    --modal-background: #3151A3;
+    --color-error: #C30909;
+    --color-generic: #FFFFFF;
+}
+
+
+/* Fonts*/
+	
+@font-face{
+	font-family:'BentonSansBBVA Light';
+	src:url("../fonts/bbva-light/bbvaweb-light-eot.eot");
+	src:url("../fonts/bbva-light/bbvaweb-light-eot.eot");
+	src:url("../fonts/bbva-light/bbvaweb-light-eot.eot?#iefix") format("embedded-opentype"),
+	url("../fonts/bbva-light/bbvaweb-light-woff.woff") format("woff"),
+	url("../fonts/bbva-light/bbvaweb-light-ttf.ttf") format("truetype");
+	font-style:normal;
+	font-weight:200
+}
+
+@font-face {
+  font-family: 'BentonSansBBVA Book';
+  src: url('../fonts/BentonSansBBVA-Book.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'subtitle';
+  src: url('../fonts/TiemposHeadline/tiempos-headline-bold.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'bbva-icons-coronita';
+  src: url('/fonts/bbva-icons-coronita.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'BentonSansBBVA Medium';
+  src: url('../fonts/BentonSansBBVA-Medium.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "BBVA Tiempos Headline";
+  src: url("../fonts/TiemposHeadline/tiempos-headline-bold.woff2") format('woff2');
+  font-weight: normal;
+}
+
+/* CSS file (styles.css) */
+body {
+    margin: auto;
+    display: block;
+	background-color: var(--color-primary-light);
+  font-size: 15px;
+}
+
+label {
+  font-size:15px;
+}
+
+header{
+    display: block;
+}
+
+a {
+    color: #0549afe6;
+  }
+
+  a:hover,
+  a:focus {
+    color: #090909e6;
+  }
+
+.color-container {
+    background-color: var(--color-primary-light);
+}
+
+.header-content {
+    display: flex;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    height: 5rem;
+    top: 0;
+	margin: 1rem 1rem 1rem 1rem;
+    padding: 10px 0;
+    border-radius: 1rem;
+    background-color: var(--color-generic);
+	box-shadow: 0px 0px 10px #ccc;
+}
+
+.header-title{
+    display: flex;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    width: 100rem;
+    margin: auto;
+	align-items: center;
+    justify-content: space-between;
+}
+
+.header-global-logo {
+    width: 140px;
+    height: 40px;
+    background-image: url(../images/bbva-logo-dark-blue.svg);
+    background-position-x: center;
+    background-position-y: center;
+    background-size: 100%;
+    background-repeat: no-repeat;
+}
+.header-title-content {
+    display: flex;
+    display: -ms-flexbox;
+    display: -webkit-flex
+}
+
+.header-title-content-text{
+    font-size: 1rem;
+    font-family: "BBVA Web Medium BS", sans-serif;
+    line-height: 0.1rem;
+    color: #fff;
+}
+
+.header-content-separacion{
+    border-left: 1px solid #fff;
+    margin-left: 1rem;
+    margin-right: 1rem;
+    opacity: .3;
+}
+
+.header-link{
+	color: #00288F;
+	font-weight: bold;
+	font-size: 1.2rem;
+    font-family: "BBVA Web Medium BS", sans-serif;
+    line-height: 0.1rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.desktop{
+	display: block;
+}
+
+
+.link{
+    color:#85C8FF;
+    font-size: 0.8rem;
+    font-family: "BentonSansBBVA Light", sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.link:hover{
+    color: #2B7BF4;
+    cursor: pointer;
+}
+
+.btn {
+    margin-bottom: 20px;
+  }
+
+footer{
+    margin-top: auto;
+    width: 100%;
+    background-color: #F7F8F8;
+}
+
+
+.fieldset-blue{
+    background-color: #00288F;
+    border-radius: 1rem;
+}
+
+.fieldset-white{
+    background-color: #ffffff;
+    border-radius: 1rem;
+}
+
+.fieldset-gray{
+    background-color: #f2f2f2;
+    border-radius: 0.4rem;
+}
+
+.footer-login-network-icons{
+    display: flex;
+}
+
+
+.footer-login{
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    margin: 1rem 1rem 1rem 1rem;
+}
+
+.footer-login-content{
+    max-width: 61rem;
+    margin: auto;
+    display: grid;
+    grid-template-columns: 9fr 0fr 0fr;
+    grid-gap: 20px;
+}
+
+.footer-login-logo{
+    margin-bottom: 2rem;
+    width: 7rem;
+    height: 2rem;
+    background-image: url(img/coronita/bbva-logo-white.svg);
+    background-position-x: center;
+    background-position-y: center;
+    background-size: 100%;
+    background-repeat-x: no-repeat;
+    background-repeat-y: no-repeat;
+}
+
+.footer-login-list{
+    display: flex;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    flex-wrap: wrap;
+    -webkit-flex-wrap: wrap;
+    -ms-flex-wrap: wrap;
+    max-width: 70%;
+    margin-top: 0px;
+	column-gap: 1rem;
+	
+}
+
+
+.footer-login-list-item{
+    margin-bottom: 1.6rem;
+    padding:0px 0px 0px 0px;
+}
+
+.footer-login-claim{
+    max-width: 61rem;
+    margin: auto;
+    display: flex;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    justify-content: space-between;
+    -webkit-justify-content: space-between;
+    -ms-flex-pack: justify;
+    align-items: center;
+    -webkit-align-items: center;
+    -ms-flex-align: center;
+}
+
+.footer-login-claim-text{
+    font-size: 0.8rem;
+    font-family: "BentonSansBBVA Book", sans-serif;
+    color: #FFFFFF;
+	
+}
+
+.footer-login-claim-slogan{
+    color: #2dcccd;
+    font-family: "BBVA Web Medium BS", sans-serif;
+    font-size: 1rem;
+}
+
+.footer-login-network-icons{
+    display: flex;
+}
+
+.footer-icon{
+    background-position-x: center;
+    background-position-y: center;
+    background-size: 100%;
+    background-repeat-x: no-repeat;
+    background-repeat-y: no-repeat;
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.2rem;
+    margin-left: 0.2rem;
+}
+.btn.disabled,
+.btn[disabled],
+fieldset[disabled] .btn {
+  background: silver;
+  opacity: .35;
+}
+.facebook-icon{
+    background-image: url(img/coronita/facebook-icon.svg);
+}
+.insta-icon{
+    background-image: url(img/coronita/insta-icon.svg);
+}
+.pinterest-icon{
+    background-image: url(img/coronita/pinterest-icon.svg);
+}
+.x-icon{
+    background-image: url(img/coronita/x-icon.svg);
+}
+.linkedin-icon{
+    background-image: url(img/coronita/linkedin-icon.svg);
+}
+.youtube-icon{
+    background-image: url(img/coronita/youtube-icon.svg);
+}
+
+.margin-top-small{
+    margin-top: 1.2rem !important;
+}
+
+.span-div {
+  color: var(--color-primary-title);
+  line-height: 20px;
+}
+
+.span-error {
+  display: block;
+  margin-left: 10px;
+  padding-left: 19px;
+  font-size: 12px;
+}
+
+.p-error {
+  color: var(--color-primary-title);
+  font-size: 10px;
+  padding: 10px 0 0 40px;
+  position: relative;
+  left: 5px;
+}
+
+.p-info {
+  margin: 0;
+  color: var(--color-primary-title);
+  font-weight: 350;
+  font-size: 15.01;
+  line-height: 18px;
+  text-align: left;
+}
+
+/* Tablets */
+@media (max-width: 768px) {/*goma*/
+	
+	.desktop{
+		display: none;
+	}
+	
+		
+	.header-content{
+		background-color: transparent;
+		box-shadow: none;
+	}
+
+    .header-title{
+		justify-content: center;
+        width: 8rem;
+    }
+    
+     .footer-login-content{
+        width: 100%;
+        display: block;
+		text-align: -webkit-center;
+    }
+	
+	.footer-login-network-icons{
+		display: ruby;
+    }
+	
+	.footer-login-list{
+		flex-direction: column;
+	}
+	
+	.footer-login-claim{
+		width: 100%;
+		justify-content: center;
+	}	
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+
+  .btn.grey{
+    width: 100%;
+    margin: 8px 0px 16px 0px;
+  }
+}
+
+/* Mobile Devices */
+@media (max-width: 425px ) {
+    .header-title{
+        width: 8rem;
+    }
+    
+    .header-title{
+        width: 8rem;
+    }
+
+    .footer-login{
+        margin: 1rem 1rem 1rem 1rem;
+    }
+
+    .form-login{
+        margin: 1rem 1rem 1rem 1rem;
+    }
+
+    .form-login-content{
+        width: 8rem;
+        display: block;
+    }
+    
+}
+
+.footer_description{
+        height: 85%;
+    }
+
+ @media (max-width: 1023px) {
+
+    .footer_description{
+        height: 120%;
+    }
+
+  }   
+
+
+
+/*Responsive Modes*/
+@media (max-width: 374px) {
+ 
+  .link-catolog{
+    margin-left: 5.33333333%;
+    margin-top: 2.33333333%;
+    }
+
+  .link-catolog-info{
+    margin-left: 1.111111%;
+    margin-top: 2.33333333%;
+    }
+}
+
+@media (min-width: 375px) {
+ 
+    .link-catolog{
+      margin-left: 5.33333333%;
+      margin-top: 2.33333333%;
+      }
+  
+    .link-catolog-info{
+      margin-left: 1.111111%;
+      margin-top: 2.33333333%;
+      }
+  }
+
+@media (min-width: 400px) {
+ 
+    .link-catolog{
+      margin-left: 5.33333333%;
+      margin-top: 2.33333333%;
+      }
+  
+    .link-catolog-info{
+      margin-left: 2.33333333%;
+      margin-top: 2.33333333%;
+      }
+  }
+
+  @media (min-width: 460px) {
+
+    .link-catolog{
+      margin-left: 6.999999%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 3.555555%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 480px) {
+
+    .link-catolog{
+      margin-left: 7.999999%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 4.555555%;
+      margin-top: 1.33333333%;
+      } 
+  }
+  
+  @media (min-width: 500px) {
+
+    .link-catolog{
+      margin-left: 9.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 6.222222%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  
+  @media (min-width: 510px) {
+
+    .link-catolog{
+      margin-left: 11.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 8.222222%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 540px) {
+
+    .link-catolog{
+      margin-left: 13.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 10.222222%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 565px) {
+
+    .link-catolog{
+      margin-left: 14.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 11.222222%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 580px) {
+
+    .link-catolog{
+      margin-left: 15.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 12.333333%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 600px) {
+
+    .link-catolog{
+      margin-left: 18.111111%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 15.222222%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 642px) {
+
+    .link-catolog{
+      margin-left: 19.111111%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 16.555555%;
+      margin-top: 1.33333333%;
+      } 
+    
+    .main-row{
+        padding: 29.5px 29.5px 5.5px 29.5px !important
+    }  
+  }
+
+  @media (min-width: 665px) {
+
+    .link-catolog{
+      margin-left: 20.111111%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 17.666666%;
+      margin-top: 1.33333333%;
+      } 
+  }
+
+  @media (min-width: 685px) {
+  
+    .link-catolog{
+      margin-left: 21.666666%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 19.33333333%;
+      margin-top: 1.33333333%;
+      }
+    
+  }
+
+  @media (min-width: 700px) {
+  
+    .link-catolog{
+      margin-left: 21.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 19.111111%;
+      margin-top: 1.33333333%;
+      }
+    
+  }
+
+  @media (min-width: 706px) {
+  
+    .link-catolog{
+      margin-left: 22.33333333%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 20.111111%;
+      margin-top: 1.333333%;
+      }
+    
+  }
+  
+  @media (max-width: 767px) {
+  
+    .main-content {
+        row-gap: 5px !important;
+    }
+
+    .main-row {
+        padding: 26.5px !important;
+    }
+    
+  }
+
+  @media (min-width: 768px) {
+    .link-catolog{
+      margin-left: 24.33333333%;
+      margin-top: 1.33333333%;
+      }
+  
+    .link-catolog-info{
+      margin-left: 22.33333333%;
+      margin-top: 1.33333333%;
+      }
+  }
+  @media (min-width: 992px) {
+    .link-catolog{
+      margin-left: 29.666666%;
+      margin-top: 1.33333333%;
+      }
+  
+    .link-catolog-info{
+      margin-left: 28.33333333%;
+      margin-top: 1.33333333%;
+      }
+    
+  }
+  @media (min-width: 949px) {
+    
+    .main-content {
+        row-gap: 11px !important;
+    }
+    
+  }
+
+  @media (min-width: 1024px) {
+
+    .link-catolog{
+      margin-left: 6.555555%;
+      margin-top: 1.33333333%;
+      }
+   
+    .link-catolog-info{
+      margin-left: 5.000000%;
+      margin-top: 1.33333333%;
+      }
+    
+  }
+  @media (min-width: 1200px) {  
+    .link-catolog{
+      margin-left: 6.999999%;
+      margin-top: 1.111111%;
+      }
+  
+    .link-catolog-info{
+      margin-left: 5.666666%;
+      margin-top: 1.33333333%;
+      }
+  }
+  
+
+.main-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    height: 100%;
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    row-gap: 16px;
+    font-family: 'BentonSansBBVA Book', sans-serif;
+	color: var(--color-primary-title);
+}
+
+.main-row {
+    padding: 16px;
+    background-color: white;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: normal;
+    /*box-shadow: rgba(0, 0, 0, 0.05) 0px 0px 0px 1px;*/
+	background-color: var(--color-generic);
+}
+
+.main-row form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+	background-color: var(--color-generic);
+}
+
+.main-content .spherica-title {
+	font-weight: 700;
+}
+
+.main-content .form-title, .main-content .form-subtitle {
+    width: 100%;
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 32px;
+    color: var(--color-primary-title);
+    padding-bottom: 10px;
+    font-family: 'BBVA Tiempos Headline', serif;
+}
+
+.spherica-title {
+	font-family: 'BBVA Tiempos Headline';
+}
+
+.spherica-text {
+	font-family: 'BentonSansBBVA Book';
+}
+
+.spherica-sub-title {
+    font-family: "BentonSansBBVA Book";
+	font-weight: 350;
+    color: var(--color-primary-title);
+    line-height: 24px;
+    font-size: 15px;
+    text-align: start;
+    padding-bottom: 12px;
+    padding-top: 12px;
+}
+
+.img-card-glass {
+	width: 277px;
+    height: 218px;
+    margin: 0px 40px 0 -40px;
+	background:url(../images/one_click_products_glass.svg) no-repeat center / contain;
+}
+
+.img-lock-glass {
+	width: 100px;
+    height: 80px;
+	background:url(img/lock_glass.svg) no-repeat center / contain;
+}
+
+.img-checkmark {
+	width: 60px;
+    height: 60px;
+	background:url(img/checkmark.svg) no-repeat center / contain;
+	margin-bottom: 20px;
+}
+
+.img-token {
+	background:url(img/security_token.svg) no-repeat center / contain;
+}
+
+.main-content .coronita-input {
+    width: 100%;
+    height: 56px;
+    font-size: 15px;
+    color: var(--color-primary-title);
+    border-style: solid;
+    border-color: var(--blurred-color);
+}
+
+.main-content .coronita-form-group {
+	position: relative;
+	max-width: 392px;
+}
+
+.checkbox-container {
+	background-color: #FFFFFF;
+    padding: 16px;
+    border-radius: 16px;
+}
+
+.desktop {
+	display: none;
+}
+
+.mobile {
+	display: flex;
+}
+
+.flex-column {
+	flex-direction: column;
+}
+
+.success-main-content {
+	flex-direction: column !important;
+}
+
+.success-disclaimer-content {
+	display: flex;
+	gap: inherit;
+	flex-direction: column;
+}
+
+.spherica-title-success {
+	font-family: 'BBVA Tiempos Headline';
+	font-size: 30px;
+	line-height: 38px;
+}
+
+.spherica-subtitle-success {
+	font-size: 15px;
+}
+
+.spherica-title-success-content {
+	width: -webkit-fill-available;
+	width: -moz-available;
+	display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+	background-color: #EBFFF0;
+    padding: 20px 15px 0px 15px;
+    border-radius: 16px;
+}
+
+.spherica-message-success {
+	display: flex;
+    flex-direction: column;
+    gap: 10px;
+	background-color: #F7F8F8;
+	padding: 24px;
+    border-radius: 16px;   
+}
+
+.spherica-link {
+	color: var(--color-dark-blue) !important;
+	font-family: 'BentonSansBBVA Medium', sans-serif !important;
+}
+
+.spherica-disclaimer {
+	background-color: #D6E9F8;
+	padding: 24px;
+	border-radius: 16px;
+}
+
+.control-label {
+	color: var(--blurred-color) !important;
+}
+
+.coronita-info-label {
+	text-align: left;
+	line-height: 15px;
+	color:var(--color-primary-title);
+}
+
+.host-error {
+	margin: 20px 0 10px 0;
+}
+
+.server-error-container {
+	text-align: left !important;
+	margin: 0 0 0 0;
+}
+
+.color-changed {
+	border-color: var(--color-dark-blue) !important;
+}
+
+.validation-error {
+	line-height: 16px;
+}
+
+.btn:focus {
+    outline: none !important;
+}
+
+.icon-info-warning-svg {
+	background: url(img/info-warning.svg) no-repeat;
+}
+
+.coronita-disclaimer-warning {
+	border-radius: 8px;
+}
+
+/* Responsive Styles */
+
+@media (max-width: 1024px) {
+	.spherica-title {
+		font-size: 24px;
+		line-height: 32px;
+	}
+	
+	.margin-left-25 {
+		margin: 0 0 0 25px;
+	}
+	
+	.header-global-logo {
+    	width: 112px;
+    	height: 32px;
+        background-repeat: no-repeat;
+	}
+	
+	.host-error {
+		margin: 20px 0 0 0;
+	}
+
+  .btn {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+	.desktop {
+		display: block !important;
+	}
+
+	.mobile {
+		display: none !important;
+	}
+
+    .main-content {
+        flex-direction: row;
+        column-gap: 12px;
+        align-items: start;
+        display: -webkit-flex;
+        width: 69rem;
+        margin: auto;
+
+    }
+    .main-row {
+        /*max-width: 300px;*/
+        align-items: start;
+        text-align: start;
+    }
+
+    .main-row form {
+        align-items: start;
+    }
+	
+	.main-content .form-principal {
+        padding-right: 5rem;
+        width: 570px;
+        display: block;
+    }
+	
+    .main-content .form-note {
+        max-width: 300px;
+        display: block;
+        width: 285px;
+    }
+
+	.spherica-title {
+		font-weight: 700;
+		font-size: 36px;
+		line-height: 48px;
+		/*width: 37.5rem;*/
+	}
+
+	.main-content .form-subtitle {
+        width: 90%;
+        font-size: 24px;
+        line-height: 32px;
+        margin-top: 10px;
+    }
+
+	.main-content .coronita-input {
+		width: 123% !important;
+	}
+
+	.success-disclaimer-content {
+		flex-direction: row !important;
+	}
+}
+
+@media (max-width: 1023px) and (min-width: 769px) {
+	.desktop {
+		display: block !important;
+	}
+
+	.mobile {
+		display: none !important;
+	}
+
+}
+
+@media (min-width: 1024px) and (max-width: 1200px) {  
+  .main-content .form-principal {
+    width: 460px;
+  }
+  .main-content .coronita-input {
+    width: 100% !important;
+  }
+}
+
+@media (min-width: 1200px) {  
+  .icon-limpiar-input-alone{
+    right: -76px;
+}
+}

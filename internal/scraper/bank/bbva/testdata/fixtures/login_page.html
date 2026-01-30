@@ -1,0 +1,531 @@
+<html><head><script type="text/javascript">
+/*<![CDATA[*/ 
+document.cookie="REDACTED";
+/*]]>*/ 
+</script>
+
+
+
+	<link rel="shortcut icon" type="image/x-icon" href="../images/favicon.ico">
+    <title>BBVA Net Cash</title>
+	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+	<meta http-equiv="Pragma" content="no-cache">
+	<meta http-equiv="Expires" content="0">
+    <meta http-equiv="Content-Style-Type" content="text/css">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge;IE=9;IE=10;IE=11">
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+    <meta http-equiv="Content-Language" content="es">
+	<meta name="viewport" content="initial-scale=1">
+    <script type="text/javascript" src="js/plantilla.js?v=3.0"></script>
+    <script type="text/javascript" src="js/direccionPIBEE.js?v=3.0"></script>
+    <script type="text/javascript" src="js/keyBoard_es.js?v=3.0"></script>
+	<script type="text/javascript" src="js/cookie.js?v=3.0"></script>
+	<script type="text/javascript" src="sph/js/spherica.js?v=200225"></script>
+	<script type="text/javascript" src="sph/js/pwd-validation.js?v=200225"></script>
+	
+	<script>
+		if (window.location.host == "bbvanetcash.pe") {
+			window.location.host = "www.bbvanetcash.pe";
+		}
+	</script>
+
+	<script>
+		let scriptBioNC = document.createElement("script");
+		if (window.location.host == "www.bbvanetcash.pe" || window.location.host == "bbvanetcash.pe") {
+			scriptBioNC.src = "https://bcdn-stats.bbvanetcash.pe/scripts/7ef308be/7ef308be_ncw.js";
+		} else if (window.location.hostname.indexOf(".bbvanetcash.pe") != -1) {
+			scriptBioNC.src = "https://bcdn-stats.bbvanetcash.pe/scripts/181e494/a3edf858.js";
+		}
+		document.getElementsByTagName("head")[0].appendChild(scriptBioNC);
+    </script><script src="https://bcdn-stats.bbvanetcash.pe/scripts/7ef308be/7ef308be_ncw.js"></script>
+
+    <!-- CSS de Bootstrap -->
+    <link href="css/bootstrap.css?v=3.0" rel="stylesheet" media="screen">
+    <link href="css/bootstrap-bbva.css?v=3.0" rel="stylesheet" media="screen">
+	<link href="sph/css/coronita.css?v=200225" rel="stylesheet" media="screen">
+	<link href="sph/css/input.css?v=200225" rel="stylesheet" media="screen">
+	<link href="sph/css/justments.css?v=200225" rel="stylesheet" media="screen">
+	<link href="sph/css/spherica.css?v=200225" rel="stylesheet" media="screen">
+	<link href="sph/css/structure.css?v=200225" rel="stylesheet" media="screen">
+
+	<script>
+		function cargandoDatos() {
+			initializeCoronitaIcons();
+			if (typeof cdApi !== 'undefined') {
+				cdApi.resetSessionNumber();
+				cdApi.changeContext('Login');
+			}
+			document.getElementById("empresa_aux").style.display = "none";
+			document.getElementById("usuario_aux").style.display = "none";
+			document.getElementById("empresa").style.display = "block";
+			document.getElementById("usuario").style.display = "block";
+			document.getElementById("empresa_aux").value="";
+			document.getElementById("usuario_aux").value="";
+			document.getElementById("empresa").value="";
+			document.getElementById("usuario").value="";
+
+			var cre = getCookie("CRE");
+			if (cre != null && cre.length > 1) {
+				key = getKeyServlet('', '', cre, 1);
+				if (key.length > 4) {
+					res = key.split("-");
+					var empresaTemp = res[0];
+					var usuarioTemp  = res[1];
+					var empre = res[2];
+					var user  = res[3];
+					document.getElementById("empresa").value = empre;
+					document.getElementById("usuario").value = user;
+					document.getElementById("empresaTemp").value = empresaTemp;
+					document.getElementById("usuarioTemp").value = usuarioTemp;
+					document.getElementById("activateEncryptLastUsuario").value = "Y";
+					document.getElementById("activateEncryptLastEmpresa").value = "Y";
+					document.getElementById("empresa").classList.add("has-value");
+					document.getElementById("usuario").classList.add("has-value");
+				}
+			}
+		}
+
+		function reglaPass() {
+			if (document.getElementById("empresa").value.trim() != "" && document.getElementById("usuario").value.trim() != "" && document.logon.eai_password.value.trim() != "" ){
+				document.getElementById("aceptar").disabled = false;
+				document.getElementById("enviarSenda").disabled = false;
+			} else {
+				document.getElementById("aceptar").disabled = true;
+				document.getElementById("enviarSenda").disabled = true;
+			}
+		}
+
+		function validaCampos() {
+			var nav = navigator.appName;
+			if (nav == "Microsoft Internet Explorer") {
+				var ie = navigator.userAgent.toLowerCase();
+				var version = parseInt(ie.split('msie')[1]);
+				if (version == 9) {
+					empresa = document.getElementById("empresa").value;
+					usuario = document.getElementById("usuario").value;
+					psw = document.logon.eai_password.value;
+					if(empresa == ""){alert("Este es un campo necesario"); document.getElementById("empresa").focus(); return false;}
+					if(usuario == ""){alert("Este es un campo necesario"); document.getElementById("usuario").focus(); return false;}
+					if(psw == ""){alert("Este es un campo necesario"); document.logon.eai_password.focus(); return false;}
+				}
+			}
+			validarFormulario();
+			return true;
+		}
+
+		function abrirformularios() {
+			if (window.location.host == "www.bbvanetcash.pe" || window.location.host == "bbvanetcash.pe") {
+				window.open('https://extranetperu.grupobbva.pe/onboarding-netcash/');//PROD
+			} else if (window.location.hostname.indexOf("qa.bbvanetcash.pe") != -1) {
+				window.open('https://extranetdev.grupobbva.pe/conboarding-netcash/');//QA
+			} else if (window.location.hostname.indexOf("test.bbvanetcash.pe") != -1) {
+				window.open('https://extranetdev.grupobbva.pe/tonboarding-netcash/');//DEV
+			} else {
+				window.open('https://extranetperu.grupobbva.pe/onboarding-netcash/');
+			}
+		}
+		function abrirCatalogo() {
+			window.open('catalogosServicios.html','','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=NO, width=900px,height=1000 ');
+		}
+		function abrir() {
+			window.open('seguridad_emp.htm','','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=NO, width=655px,height=950');
+		}
+		function abrirPolitica() {
+			window.open('politicasSeguridad.html','','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=NO, width=655px,height=900');
+		}
+		function resetearUsuario() {
+			document.getElementById("reset").action = "/DFAUTH85/slod_pe_web/DRServlet";
+			document.getElementById("reset").submit();
+		}
+	</script>
+
+	<script>
+		window.addEventListener('load', function () {
+			let user = document.getElementById('usuario');
+			let reference = document.getElementById('empresa');
+			let password = document.getElementById('clave_acceso_ux');
+
+			let empresaTemp = document.getElementById("empresaTemp");
+			let usuarioTemp = document.getElementById("usuarioTemp");
+
+			const button = document.querySelector('#enviarSenda');
+			const buttonLegacy = document.querySelector("#aceptar");
+			const labelMessageError = document.querySelector('#error-message');
+			const iframeContainer = document.querySelector('#iframe-container');
+			const loginContainer = document.getElementById('login-form');
+
+			const originLegacy = "https://www.bbvanetcash.pe";
+			const iframeOrigin = 'https://www.bbvanetcash.pe/nextgenempresascoexistencia';
+			const iframeSrc = "https://www.bbvanetcash.pe/nextgenempresascoexistencia/login/index.html"
+			const urlPortalSenda =  "https://www.bbvanetcash.pe/nextgenempresas/portal/index.html"
+
+			
+
+			const iframe = document.querySelector('#microfrontend');
+  			iframe.src = iframeSrc
+
+			const RESPONSE_LOGIN_COD = {
+    			DO_REDIRECT_SENDA: "DO_REDIRECT_SENDA",
+    			DO_LOGIN_LEGACY: "DO_LOGIN_LEGACY",
+    			ONE_TIME_PASSWORD: "ONE_TIME_PASSWORD",
+    			BLOQUED_USER: "BLOQUED_USER",
+    			TOKEN_BLOQUED: "TOKEN_BLOQUED",
+    			LOGIN_ERROR: "LOGIN_ERROR",
+    			USER_NOT_EXIST: "USER_NOT_EXIST",
+    			INVALID_PASSWORD: "INVALID_PASSWORD",
+    			UNKNOWN_LOGIN_ERROR: "UNKNOWN_LOGIN_ERROR",
+    			RESIZE_ON: "RESIZE_100",
+    			RESIZE_OFF: "RESIZE_0",
+    			EAI0000: "EAI0000",
+    			EA160: "EA160",
+				EA161: "EA161",
+    			TBD: "TBD",
+    			EA162: "EA162",
+				EA164: "EA164",
+  			}
+
+  			const MESSAGE_ERROR = {
+    			BLOQUED_USER: 'Tu usuario est\u00E1 bloqueado. Por favor, comun\u00EDcate con nuestra L\u00EDnea Empresas al (01) 595-1200 para ayudarte.',
+    			TOKEN_BLOQUED: 'Los datos ingresados son incorrectos. Alcanzaste el l\u00EDmite de intentos.',
+    			LOGIN_ERROR: 'Ha ocurrido un error al authenticarse, int\u00E9ntalo nuevamente.',
+    			USER_NOT_EXIST: "Es necesario que corrijas los datos que ingresaste para poder continuar.",
+    			INVALID_PASSWORD: "Es necesario que corrijas los datos que ingresaste para poder continuar.",
+    			UNKNOWN_LOGIN_ERROR: "Usuario no disponible."
+  			}
+
+			const getData = () => {
+  				return {
+    				user: (isFormatData(user.value) ? usuarioTemp.value : user.value).toUpperCase(),
+    				code: isFormatData(reference.value) ? empresaTemp.value : reference.value,
+    				password: password.value,
+    				message: 'From legacy app',
+  				};
+			};
+
+			const isFormatData = (value) => value.includes("**")
+
+			/**
+			 * Send a custom message to an iframe.
+			 *
+			 * @param {Object} data Postmessage payload
+			 */
+			function _dispatchPostMessageToIframe(data) {
+				iframe.contentWindow.postMessage(
+					data,
+					iframeOrigin !== '*' ? iframeOrigin : '*'
+				);
+				//fullScreenIframe();
+			}
+
+			/**
+			 * Handle add text message error
+			*/
+			function _setTextMessageErrorInLabel(text) {
+  				labelMessageError.textContent = `${text}`;
+				document.getElementById("error-message").style.display = "block";
+			}
+
+			/**
+			 * Handle reset text message error
+			*/
+			function _resetTextMessageErrorInLabel() {
+				labelMessageError.textContent = "";
+				document.getElementById("error-message").style.display = "none";
+			}
+
+			function minimizeIframe() {
+    			iframeContainer.style.display = 'none';
+    			loginContainer.style.display = '';
+  			}
+
+  			function fullScreenIframe() {
+    			const height = window.innerHeight;
+    			iframe.style.height = `${height}px`;
+    			iframeContainer.style.display = '';
+    			loginContainer.style.display = 'none';
+  			}
+
+			/**
+ 			* Handle switch validate show error login.
+ 			*/
+			 function _validateLoginError(eventName, detail) {
+				switch (eventName) {
+            		case RESPONSE_LOGIN_COD.DO_REDIRECT_SENDA:
+                		location.href = urlPortalSenda
+                	break;
+            		case RESPONSE_LOGIN_COD.DO_LOGIN_LEGACY:
+                		buttonLegacy.click()
+                	break;
+      	    		case RESPONSE_LOGIN_COD.UNKNOWN_LOGIN_ERROR:
+						buttonLegacy.click()
+      		    	break;
+      	    		case RESPONSE_LOGIN_COD.LOGIN_ERROR:
+      	 	    		if (detail.message === RESPONSE_LOGIN_COD.USER_NOT_EXIST) {
+      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
+      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.EA161) {
+      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.INVALID_PASSWORD)
+      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.EAI0000) {
+      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
+      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.EA160) {
+      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
+      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.TBD) {
+      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
+      	 	    		} else {
+      	 	    			buttonLegacy.click()
+      	 	    		}
+      		    	break;
+      	    		case RESPONSE_LOGIN_COD.BLOQUED_USER:
+						if (detail.code === RESPONSE_LOGIN_COD.EA164) {
+      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.TOKEN_BLOQUED)
+					  	} else if (detail.code === RESPONSE_LOGIN_COD.EA162) {
+							_setTextMessageErrorInLabel(MESSAGE_ERROR.BLOQUED_USER)
+					  	}
+					  	minimizeIframe()
+      		    	break;
+					case RESPONSE_LOGIN_COD.RESIZE_ON:
+						fullScreenIframe()
+					break;
+					case RESPONSE_LOGIN_COD.RESIZE_OFF:
+						minimizeIframe()
+					break;
+      	    		default:
+      				break
+        		}
+			}
+
+			/**
+			 * function remenber data
+			*/
+			function validaCampos() {
+				var nav = navigator.appName;
+				if (nav == "Microsoft Internet Explorer") {
+					var ie = navigator.userAgent.toLowerCase();
+					var version = parseInt(ie.split('msie')[1]);
+					if (version == 9) {
+						empresa = document.getElementById("empresa").value;
+						usuario = document.getElementById("usuario").value;
+						psw = document.logon.eai_password.value;
+						if(empresa == ""){alert("Este es un campo necesario"); document.getElementById("empresa").focus(); return false;}
+						if(usuario == ""){alert("Este es un campo necesario"); document.getElementById("usuario").focus(); return false;}
+						if(psw == ""){alert("Este es un campo necesario"); document.logon.eai_password.focus(); return false;}
+					}
+				}
+				validarFormulario();
+				return true;
+			}
+
+			/**
+			 * Handle button click by sending a postmessage to
+			 * the iframe.
+			 */
+			 button.addEventListener('click', (e) => {
+				validaCampos();
+				e.preventDefault();
+				_resetTextMessageErrorInLabel()
+				_dispatchPostMessageToIframe(getData());
+			});
+
+			/**
+			 *Handle the communication messages from the iframe.
+			 */
+			 window.addEventListener('message', ({origin, data}) => {
+				console.log('GET MESSAGE CELLS: ', origin, data);
+				const { event, detail } = data
+				if(origin === originLegacy) {
+    				_validateLoginError(event, detail)
+				}
+			});
+			minimizeIframe();
+			_resetTextMessageErrorInLabelConditional();
+		})
+	</script>
+<script>bazadebezolkohpepadr="1787187560"</script><script type="text/javascript" src="https://www.bbvanetcash.pe/akam/13/6a86510e" defer=""></script></head>
+<body onload="cargandoDatos();direccion();">
+	<input type="hidden" name="empresaTemp" id="empresaTemp">
+	<input type="hidden" name="usuarioTemp" id="usuarioTemp">
+	<input type="hidden" name="activateEncryptLastUsuario" id="activateEncryptLastUsuario">
+	<input type="hidden" name="activateEncryptLastEmpresa" id="activateEncryptLastEmpresa">
+	<!-- HEADER de spherica INICIO-->
+	<header>
+		<div class="header-content">
+			<div class="header-title">
+				<a class="header-global-logo" href="https://www.bbva.pe/"></a>
+				<a class="header-link desktop" role="link" tabindex="0" aria-disabled="false" target="_blank" href="https://www.bbva.pe/" id="">
+					<span>Ir a BBVA Perú</span>
+				</a>
+			</div>
+		</div>
+	</header>
+	<!-- HEADER de spherica FINAL-->
+    <div class="container color-container">
+		<div id="login-form" style="">
+
+			<!-- new body spherica INICIO-->
+			<div class="step-container" style="height: 715px; overflow: visible; flex-grow: 1;">
+				<div id="wizard-slide-viewer" style="left: 0px;">
+					<div class="footer_description">
+						<div id="identificacion" data-noprev="true" data-title="Paso 1 de 2" data-required-check="true" style="display: block;">
+							<div class="main-content">
+
+								<form name="logon" method="POST" action="https://www.bbvanetcash.pe/DFAUTH85/slod_pe_web/DFServlet" onsubmit="return validaCampos();">
+									<input type="hidden" name="origen" value="pibee">
+        							<input type="hidden" name="valor">
+									<div class="form-principal main-row">
+										<div id="main-form" class="step-content-container">
+											<div id="title" class="spherica-title">
+												<span><span class="spherica-title"></span>Te damos la bienvenida</span>
+											</div>
+
+											<div id="hostError" class="host-error"></div>
+
+											<div class="spherica-sub-title">Completa tus datos y disfruta de BBVA Empresas</div>
+
+											<div class="recuperaClave">
+												<div class="row">
+													<div class="col-lg-12">
+														<div class="coronita-form-group">
+															<i class="icon-limpiar-input-alone"></i>
+															<input type="text" id="empresa" name="cod_emp" class="form-control required number gr coronita-input" maxlength="8" placeholder="" tabindex="1" data-msg-required="Necesitas completar este campo." onfocus="pintar(this);modificarDatosIngreso('empresa')" onblur="despintar(this)" autocomplete="off" title="Código de empresa" required="" style="display: block;">
+															<input type="text" class="form-control coronita-input" style="display: none" name="cod_emp_aux" id="empresa_aux" tabindex="1" title="empresa" maxlength="8">
+															<label for="empresa" class="control-label">Código de empresa <span title="" class="icon-info-16 icon-pos-global tooltip-help icon-tooltip-des"></span></label>
+																
+															<div class="coronita-input-label coronita-small-margin-bottom">
+																<div class="coronita-texto-con-icono">
+																	<span class="coronita-small-icon icon-info-svg"></span>
+																	<div class="coronita-small-font-zise coronita-info-label">El código de empresa tiene 8 caracteres.</div>
+																</div>
+															</div>
+														</div>
+													</div>
+												</div>
+
+
+												<div class="row">
+													<div class="col-lg-12">
+														<div class="coronita-form-group">
+															<i class="icon-limpiar-input-alone"></i>
+															<input type="text" id="usuario" name="cod_usu" class="form-control required number sm coronita-input clave-cajero" maxlength="8" placeholder="" tabindex="2" data-msg-required="Necesitas completar este campo." onfocus="pintar(this);modificarDatosIngreso('usuario')" onblur="despintar(this)" autocomplete="off" title="Código de usuario" required="" style="display: block;">
+															<input type="text" class="form-control coronita-input" style="display: none" name="cod_usu_aux" id="usuario_aux" tabindex="2" title="usuario" maxlength="8">
+															<label for="usuario" class=" control-label">Código de usuario <span title="" class="icon-info-16 icon-pos-global tooltip-help icon-tooltip-des" data-original-title="Ingresa la clave de 4 dÃ­gitos que utilizas en nuestros cajeros."></span></label>
+																
+															
+															<div class="coronita-input-label coronita-small-margin-bottom">
+																<div class="coronita-texto-con-icono">
+																	<span class="coronita-small-icon icon-info-svg"></span>
+																	<div class="coronita-small-font-zise coronita-info-label">El código de usuario puede tener de 4 a 8 caracteres.</div>
+																</div>
+															</div>
+														</div>
+													</div>
+												</div>
+
+												<div class="row coronita-small-margin-bottom-password">
+													<div class="col-lg-12">
+														<div class="coronita-form-group">
+															<i class="icon-limpiar-input-alone"></i>				
+															<input type="password" id="clave_acceso_ux" name="eai_password" class="form-control  required number sm coronita-input clave-cajero" maxlength="36" tabindex="3" data-msg-required="Necesitas completar este campo." autocomplete="off" title="Contraseña" onfocus="pintar(this)" onblur="despintar(this,'#ffffff')" data-msg-minlength="Por favor, no escribas menos de 4 dÃ­gitos." required="">
+															<label class=" control-label" for="clave_acceso_ux" id="clave_acceso">Contraseña</label>	
+															<div class="question-div">
+																<a class="link_text" onclick="resetearUsuario()">¿Olvidaste tu clave de acceso?</a>
+															</div>	
+														</div>
+													</div>
+												</div>
+
+																							
+
+												<div class="form-group form-check-out">
+													<label class="lbl-cb" style="display: block;">
+														<div class="form-check-group">
+															<input id="checkRecData" name="checkRecData" value="true" type="checkbox" tabindex="4" style="display: inline-block;" checked="checked">
+															<span class="span-div">Recordar código de empresa y usuario</span>	
+														</div>
+													</label>
+												</div>
+
+												<input type="hidden" name="idioma" value="">
+												<input type="hidden" name="eai_user" value=""> 
+												<input type="hidden" value="" name="eai_URLDestino">
+												
+												<div class="clearfix"></div>
+													<!-- <span id="error-icon" ></span> -->
+													<span id="error-message" class="coronita-small-icon-warning icon-info-svg-warning span-error" style="display: block;"></span>
+													
+												
+												<div class="d-flex">
+													<div class="button-bar clearfix width-add">
+														<button type="submit" class="btn arrow-right next wizardNext" id="enviarSenda" title="Ingresar" disabled="true">Ingresar</button>
+														<button type="submit" style="width: 5px; height: 5px;background: transparent;position: absolute;top: 0;bottom: 0;border: none;" id="aceptar" title="Ingresar" disabled="true"></button>
+													</div>
+													<div class="button-bar clearfix width-add wrap-nowrap">
+														<a class="btn arrow-right next wizardNext grey link-hover" onclick="abrirformularios()" title="Contrata BBVA Empresas">Contrata BBVA Empresas</a>
+													</div>
+												</div>	
+
+											</div>
+										</div>
+									</div>
+								</form>
+
+								<form id="reset" name="reset" method="POST">
+									<input type="hidden" name="dr_pagInicial" value="S">
+									<input type="hidden" name="origen" value="pibee">
+								</form>
+
+								<div style="display: block;">
+									<div class="form-note main-row section-visibility hidden-xs" style="margin-bottom: 15px;">
+										<div class="img-card-glass"></div>
+										<h2 class="form-subtitle">BBVA Empresas: tus finanzas al día con unos clics</h2>
+										<div class="note-div">
+											<img src="sph/images/Investment.svg">
+											<p class="note-p">Gestiona la tesorería de tu empresa con nuestra plataforma digital</p>
+										</div>
+										<div class="note-div">
+											<img src="sph/images/Bank.svg">
+											<p class="note-p">Accede a nuestros servicios desde bbvanetcash.pe</p>
+										</div>
+									</div>
+
+									<div class="row">
+										<div class="col-lg-12">
+											<div class="coronita-form-group coronita-form-group-info">
+												<span class="coronita-small-icon icon-info-svg"></span>
+												<p class="p-info">Ten en cuenta que nunca solicitaremos tus contraseñas por ningún medio. </p>
+											</div>
+										</div>
+									</div>
+								</div>
+
+							</div>
+							
+							<div class="link-catolog">
+								<a href="javascript:abrirCatalogo();">Conoce nuestros servicios</a>
+							</div>
+							<a class="link-catolog mobile" role="link" tabindex="0" aria-disabled="false" target="_blank" href="https://www.bbva.pe/" id="">
+								<span>Ir a BBVA Perú</span>
+							</a>
+							<div class="col-lg-12 link-catolog-info">
+								<span style="font-weight: bold;">Llámanos al (01) 595-1200</span>
+							</div>
+							<div class="col-lg-12 link-catolog-info info-year">
+								<p>© <script>document.write(new Date().getFullYear())</script>2026 BBVA S.A.</p>
+							</div>
+						</div>		
+					</div>
+				</div>
+			</div>
+
+
+		</div>
+		<div id="iframe-container" class="iframe-container" style="display: none;">
+			<iframe id="microfrontend" width="100%" style="border:none;" class="iframe" title="Coexistence login application" src="https://www.bbvanetcash.pe/nextgenempresascoexistencia/login/index.html"></iframe>
+		</div>
+	</div>
+	<!-- LibrerÃ­a jQuery requerida por los plugins de JavaScript -->
+	<script src="js/jquery-1.11.3.min.js?v=3.0"></script>
+	<script src="js/bootstrap.min.js?v=3.0"></script>
+
+	
+<script type="text/javascript" src="/anzB38pk1/dBg5pE/3pLUfn4/LVF7U/YYuzpDc99zwO0fz7/CzlpAQ/dDs1fVca/DAAC"></script><noscript><img src="https://www.bbvanetcash.pe/akam/13/pixel_6a86510e?a=dD0zY2IxOGRjMmI2YTY1MmY2N2RiMmQxZWZhZmQwMzJlOTY5MWIxNWI2JmpzPW9mZg==" style="visibility: hidden; position: absolute; left: -999px; top: -999px;" /></noscript>
+
+</body></html>

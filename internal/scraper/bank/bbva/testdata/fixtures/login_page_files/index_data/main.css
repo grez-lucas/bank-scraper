@@ -1,0 +1,5 @@
+#announcer {
+  position: fixed;
+  height: 0;
+  overflow: hidden;
+}
