@@ -114,7 +114,7 @@ func sanitizeFile(path string, dryRun bool) {
 		if err := os.WriteFile(path, []byte(sanitized), 0o644); err != nil {
 			fmt.Printf("    ❌ Error writing %s: %v\n ", path, err)
 		} else {
-			fmt.Println("    ✅ Sanitized and saved")
+			fmt.Println("    ✅ Sanitized and saved: ", path)
 		}
 	}
 }

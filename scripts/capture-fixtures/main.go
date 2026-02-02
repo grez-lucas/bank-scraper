@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/stealth"
 )
 
 // Pages to capture for each bank
@@ -22,6 +23,7 @@ var capturePages = []PageCapture{
 	{Name: "balance_usd", Instructions: "Navigate to a USD account balance page"},
 	{Name: "transactions", Instructions: "Navigate to transactions list (last 7 days)"},
 	{Name: "transactions_empty", Instructions: "Navigate to an account with no recent transactions (or skip)"},
+	{Name: "Logout", Instructions: "Logout of the page before quitting (or skip)"},
 }
 
 type PageCapture struct {
@@ -61,7 +63,17 @@ func main() {
 
 	// Launch visible browser
 	url := launcher.New().
+		Bin("/usr/bin/google-chrome").
 		Headless(false).
+		// CRITICAL: Disable the "Automation" internal flags
+		Set("disable-blink-features", "AutomationControlled").
+		Set("exclude-switches", "enable-automation").
+
+		// Standard "Human" Args
+		Set("no-first-run").
+		Set("no-default-browser-check").
+		Set("window-size", "1920,1080").
+		// Set("user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36").
 		Devtools(false).
 		MustLaunch()
 
@@ -72,7 +84,9 @@ func main() {
 	defer browser.MustClose()
 
 	// Create initial page
-	page := browser.MustPage("")
+	page := stealth.MustPage(browser)
+
+	// page := browser.MustPage("")
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -103,35 +117,45 @@ func main() {
 			continue
 		}
 
-		// Wait a moment for any dynamic content
-		domDiffPercentage := 0.05
-		domDiffDuration := 3 * time.Second
+		// -- Step 1: Wait for DOM to stabilize, including iframes
+		waitForIFrames(page)
+		time.Sleep(1 * time.Second)
 
-		page.WaitDOMStable(domDiffDuration, domDiffPercentage)
+		// -- Step 2: Screenshot BEFORE DOM modification --
+		// Taking the screenshot before the inlining preserves visual fidelity
+		screenshotPath := filepath.Join(outDir, capture.Name+".png")
+		if buf, err := page.Screenshot(false, nil); err == nil {
+			if writeErr := os.WriteFile(screenshotPath, buf, 0o644); writeErr != nil {
+				fmt.Printf("   ⚠️  Error saving screenshot: %v\n", err)
+			} else {
+				fmt.Printf("   📸 Screenshot: %s\n", screenshotPath)
+			}
+		} else {
+			fmt.Printf("   ⚠️  Screenshot failed: %v\n", err)
+		}
 
-		// Capture HTML
-		html, err := page.HTML()
+		// -- Step 3: Inline iframes and capture merged HTML
+		html, iframeCount, err := inlineIframesAndCapture(page)
 		if err != nil {
-			fmt.Printf("   ❌ Error getting HTML: %v\n\n", err)
+			fmt.Printf("   ❌ Error capuring HTML: %v\n\n", err)
 			continue
 		}
 
-		// Save HTML
+		if iframeCount > 0 {
+			fmt.Printf("   🔲 Inlined %d iframe(s) into captured HTML\n", iframeCount)
+		}
+
+		// -- Step 4: Save HTML fixture --
 		htmlPath := filepath.Join(outDir, capture.Name+".html")
 		if err := os.WriteFile(htmlPath, []byte(html), 0o644); err != nil {
 			fmt.Printf("   ❌ Error saving HTML: %v\n\n", err)
 			continue
 		}
 
-		// Capture screenshot
-		screenshotPath := filepath.Join(outDir, capture.Name+".png")
-		page.MustScreenshot(screenshotPath)
-
 		// Get page URL for reference
 		pageURL := page.MustInfo().URL
 
 		fmt.Printf("   ✅ Saved: %s\n", htmlPath)
-		fmt.Printf("   📸 Screenshot: %s\n", screenshotPath)
 		fmt.Printf("   🔗 URL: %s\n\n", pageURL)
 	}
 
@@ -146,6 +170,171 @@ func main() {
 	fmt.Println("════════════════════════════════════════════════════════════════")
 }
 
+// GetDeepestVisibleFrame recursively waits for the DOM to be stable,
+// checks for visible iframes, and dives into them.
+// If no visible iframe is found, it returns the current scope (the page itself).
+func GetDeepestVisibleFrame(page *rod.Page) *rod.Page {
+	// 1. Wait for DOM to be stable
+	page.MustWaitDOMStable()
+
+	// 2. Get a list of iframes
+	iframes, err := page.Elements("iframe")
+	if err != nil {
+		return page // Return the page if an error occurs
+	}
+
+	// 3. iterate to find the "Content" iframe
+	for _, frame := range iframes {
+		if visible, _ := frame.Visible(); visible {
+			child := frame.MustFrame()
+			return GetDeepestVisibleFrame(child)
+		}
+	}
+
+	// 4. If no iframes are found, return the page
+	return page
+}
+
+// waitForIFrames waits for the main page to reach DOM stability
+// before capture.
+func waitForIFrames(page *rod.Page) {
+	// 1. Wait for DOM to be stable
+	page.MustWaitDOMStable()
+
+	// 2. Get a list of iframes
+	iframes, err := page.Elements("iframe")
+	if err != nil {
+		fmt.Printf("Error getting iframes: %v", err)
+		return
+	}
+
+	for _, iframe := range iframes {
+		visible, _ := iframe.Visible()
+		if !visible {
+			continue
+		}
+
+		frame, err := iframe.Frame()
+		if err != nil {
+			continue
+		}
+
+		waitForIFrames(frame)
+
+	}
+}
+
+// inlineIframesAndCapture replaces all <iframe> elements in the live DOM with
+// <div data-captured-iframe="true"> containers holding the iframe's body
+// content, then returns the full page HTML as a single parsable document.
+//
+// This solves the core problem: a plain page.HTML() call only returns the
+// outer document with empty <iframe> tags — the actual data rendered inside
+// iframes (balances, transactions) is lost entirely.
+//
+// After inlining, the fixture can be parsed with goquery as one flat document:
+//
+//	doc.Find("[data-captured-iframe] .balance-amount").Text()
+//
+// DOM modification note: This replaces <iframe> elements in the live DOM.
+// This is acceptable because the user navigates to a new page between each
+// capture step, discarding the modified DOM.
+//
+// Returns: merged HTML string, number of iframes found, error.
+func inlineIframesAndCapture(page *rod.Page) (string, int, error) {
+	// Count iframes before inlining (for reporting)
+	iframeCount := 0
+	iframes, err := page.Elements("iframe")
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get iframe elemenets: %w", err)
+	}
+	iframeCount += len(iframes)
+
+	if iframeCount == 0 {
+		html, htmlErr := page.HTML()
+		if htmlErr != nil {
+			return "", 0, htmlErr
+		}
+		return html, 0, nil
+	}
+
+	// This will modify the DOM but we should be OK since it will be re-loaded on a page navigation anyway
+	_, err = page.Eval(inlineIframesJS)
+	if err != nil {
+		// Fallback: return outer HTML without inlining.
+		// This can happen with cross-origin iframes or restricted pages.
+		fmt.Printf("   ⚠️  Could not inline iframes (cross-origin?): %v\n", err)
+		html, htmlErr := page.HTML()
+		if htmlErr != nil {
+			return "", 0, htmlErr
+		}
+		return html, 0, nil
+	}
+
+	// page.HTML() now returns DOM with iframes replaced by their content
+	html, err := page.HTML()
+	if err != nil {
+		return "", 0, err
+	}
+
+	return html, iframeCount, nil
+}
+
+const inlineIframesJS string = `() => {
+	function inlineIframes(root) {
+		const iframes = root.querySelectorAll('iframe');
+
+		iframes.forEach((iframe) => {
+			try {
+				const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+				if (!iframeDoc || !iframeDoc.body) return;
+
+				// Depth-first: inline nested iframes before reading this one's content
+				inlineIframes(iframeDoc);
+
+				// Create replacement container in the SAME document as the iframe
+				const container = root.createElement('div');
+				container.setAttribute('data-captured-iframe', 'true');
+				container.setAttribute('data-iframe-src', iframe.src || '');
+				container.setAttribute('data-iframe-id', iframe.id || '');
+				container.setAttribute('data-iframe-name', iframe.name || '');
+
+				// Preserve layout-relevant dimensions as data attributes
+				const w = iframe.getAttribute('width') || iframe.style.width || '';
+				const h = iframe.getAttribute('height') || iframe.style.height || '';
+				if (w) container.setAttribute('data-iframe-width', w);
+				if (h) container.setAttribute('data-iframe-height', h);
+
+				// Build merged content: styles first, then body
+				let contentHTML = '';
+
+				// Copy <style> blocks from the iframe's <head>
+				if (iframeDoc.head) {
+					iframeDoc.head.querySelectorAll('style').forEach((style) => {
+						contentHTML += '<style data-from-iframe="true">'
+							+ style.textContent + '<\/style>';
+					});
+				}
+
+				// Append the iframe's body content (the actual data we need)
+				contentHTML += iframeDoc.body.innerHTML;
+
+				container.innerHTML = contentHTML;
+				iframe.parentNode.replaceChild(container, iframe);
+			} catch(e) {
+				// Cross-origin or other access restriction — mark but don't crash
+				const errDiv = root.createElement('div');
+				errDiv.setAttribute('data-captured-iframe', 'true');
+				errDiv.setAttribute('data-iframe-error', e.message);
+				errDiv.setAttribute('data-iframe-src', iframe.src || '');
+				errDiv.textContent = '[iframe not accessible: ' + e.message + ']';
+				iframe.parentNode.replaceChild(errDiv, iframe);
+			}
+		});
+	}
+	inlineIframes(document);
+}`
+
 func saveMetadata(outDir, bankCode string) {
 	metadata := fmt.Sprintf(`# Fixture Metadata
 bank: %s
@@ -155,6 +344,23 @@ captured_by: %s
 ## Files
 See .html files in this directory.
 Screenshots (.png) provided for visual reference.
+
+## Iframe Handling
+
+Iframe content is automatically inlined during capture as:
+
+    <div data-captured-iframe="true" data-iframe-src="..." data-iframe-name="...">
+      <style data-from-iframe="true">/* iframe styles */</style>
+      <!-- iframe body content -->
+    </div>
+
+Parse inlined iframe content with goquery:
+
+    doc.Find("[data-captured-iframe] .your-selector")
+
+Target a specific iframe by attribute:
+
+    doc.Find("[data-iframe-name='content'] .balance-amount")
 
 ## Notes
 - These fixtures should be sanitized before committing
