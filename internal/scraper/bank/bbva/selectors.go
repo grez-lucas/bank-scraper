@@ -8,5 +8,8 @@ const (
 	SelectorPasswordInput = "#clave_acceso_ux"
 
 	// Balance Page
-	SelectorAccountsTable = "#tabla-contenedor0_1 tbody tr:not(.tb_column_header)"
+	SelectorAccountsTableRows = "#tabla-contenedor0_1 tbody tr:not(.tb_column_header)"
+
+	// Transactions Page
+	SelectorTransactionsTableRows = "#tabladatos tbody tr:not(.tb_column_header):not(.tb_total)"
 )

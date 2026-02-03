@@ -68,7 +68,16 @@ func TestParseBalance_NoAccountsTableButOnlyJuridicTable(t *testing.T) {
 	assert.ErrorContains(t, err, string(bank.CurrencyUSD))
 }
 
-func TestToCents(t *testing.T) {
+func TestParseTransactions(t *testing.T) {
+	html := testutil.LoadFixture(t, "bbva", "transactions")
+
+	transactions, err := ParseTransactions(html)
+
+	assert.NoError(t, err)
+	assert.Len(t, transactions, 10)
+}
+
+func TestParseSpanishAmount(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
@@ -109,7 +118,7 @@ func TestToCents(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := ToCents(tc.input)
+			got, err := ParseSpanishAmount(tc.input)
 			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
