@@ -37,11 +37,10 @@ type Transaction struct {
 	Type        TransactionType // CREDIT (money in) or DEBIT (money out)
 
 	// Balance (optional - only populated if bank provides it)
-	BalanceAfter int64
+	BalanceAfter *int64
 
 	// Bank-specific metadata (optional)
-	BankCode string            // Transaction type code (e.g., BBVA's Código: "015", "527")
-	Extra    map[string]string // Extra metadata. e.g., Store "Codigo": "015", "Office": "0437"
+	Extra map[string]string // Extra metadata. e.g., Store "Codigo": "015", "Office": "0437"
 }
 
 type Currency string
@@ -54,6 +53,6 @@ const (
 type TransactionType string
 
 const (
-	TransactionCredit TransactionType = "CREDIT"
-	TransactionDebit  TransactionType = "DEBIT"
+	TransactionCredit TransactionType = "CREDIT" // CREDIT (money in)
+	TransactionDebit  TransactionType = "DEBIT"  // DEBIT (money out)
 )

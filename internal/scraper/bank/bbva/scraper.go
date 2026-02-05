@@ -7,6 +7,8 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 )
 
+const bbvaPortalURL string = "https://www.bbvanetcash.pe/DFAUTH85/mult/KDPOSolicitarCredenciales_es.html"
+
 type BBVAScraper struct {
 	browser *rod.Browser
 }

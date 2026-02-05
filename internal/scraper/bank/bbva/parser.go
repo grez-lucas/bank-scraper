@@ -2,6 +2,7 @@ package bbva
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 )
 
 const (
+	// -- ACCOUNTS --
 	// Table Column Indexes
 	colAccountID        = 0
 	colCurrentBalance   = 2
@@ -20,6 +22,17 @@ const (
 	// Table Labels
 	LabelSoles   = "SOLES"
 	LabelDollars = "DOLARES"
+
+	// -- TRANSACTIONS --
+	colFOperacion = 0
+	colFValor     = 1
+	colCodigo     = 2
+	colNumDoc     = 3
+	colConcepto   = 4
+	colImporte    = 5
+	colOficina    = 6
+
+	BBVADateLayout = "02-01-2006"
 )
 
 type BalanceResult struct {
@@ -31,11 +44,39 @@ type BalanceResult struct {
 type BBVARow struct {
 	FOperacion time.Time
 	FValor     time.Time
-	Codigo     int8
-	NDoc       int
+	Codigo     string
+	NDoc       string
 	Concepto   string
 	Importe    int64 // Can be negative, represents two decimal precision (e.g., -2,000.00 or -0.90)
-	Oficina    int
+	Oficina    string
+}
+
+func (r *BBVARow) IsPositiveImport() bool {
+	return r.Importe > 0
+}
+
+// ToTransaction transforms a BBVA Row into a standard transaction
+func (r *BBVARow) ToTransaction() *bank.Transaction {
+	absAmount := r.Importe
+	txnType := bank.TransactionCredit
+
+	if !r.IsPositiveImport() {
+		txnType = bank.TransactionDebit
+		absAmount = -absAmount
+	}
+
+	// TODO: Implement ME
+	return &bank.Transaction{
+		ID:           r.NDoc,
+		Reference:    "",
+		Date:         r.FOperacion,
+		ValueDate:    r.FValor,
+		Description:  r.Concepto,
+		Amount:       absAmount,
+		Type:         txnType,
+		BalanceAfter: nil,
+		Extra:        map[string]string{"Office": r.Oficina, "Codigo": r.Codigo},
+	}
 }
 
 // --- PUBLIC API ---
@@ -69,14 +110,22 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 		return nil, err
 	}
 
-	var rowCounter int
-	var transactions []bank.Transaction
-	// Select all rows of the table
-	doc.Find(SelectorTransactionsTableRows).Each(func(i int, s *goquery.Selection) {
-		rowCounter++
+	txnRows := doc.Find(SelectorTransactionsTableRows)
+
+	transactions := make([]bank.Transaction, txnRows.Length())
+
+	// Iterate over rows
+	txnRows.Each(func(i int, s *goquery.Selection) {
+		// 1. Parse the HTML row
+		tempRow, err := parseTransactionRow(s)
+		if err != nil {
+			return
+		}
+
+		// 2. Transform the data into a transaction
+		transactions[i] = *tempRow.ToTransaction()
 	})
-	fmt.Printf("Found %d rows!\n", rowCounter)
-	transactions = make([]bank.Transaction, rowCounter)
+	fmt.Printf("DEBUG: Found %d transactions! Stored them in a slice of cap %d\n", len(transactions), cap(transactions))
 
 	return transactions, nil
 }
@@ -128,6 +177,36 @@ func extractBalance(html string, targetLabel string, currency bank.Currency) (*b
 	return balance, nil
 }
 
+func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
+	var err error
+	var row BBVARow
+	if s == nil {
+		return nil, fmt.Errorf("unable to parse nil selection")
+	}
+	cells := s.Find("td")
+
+	row.FOperacion, err = ParseBankDate(cells.Eq(colFOperacion).Text())
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to parse Fecha de Operacion: %v", bank.ErrParsingFailed, err)
+	}
+	row.FValor, err = ParseBankDate(cells.Eq(colFValor).Text())
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to parse Fecha de Operacion: %v", bank.ErrParsingFailed, err)
+	}
+	row.Codigo = strings.TrimSpace(cells.Eq(colCodigo).Text())
+	row.NDoc = strings.TrimSpace(cells.Eq(colNumDoc).Text())
+	row.Concepto = strings.TrimSpace(cells.Eq(colConcepto).Text())
+
+	row.Importe, err = ParseSpanishAmount(cells.Eq(colImporte).Text())
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to parse Importe: %v", bank.ErrParsingFailed, err)
+	}
+
+	row.Oficina = strings.TrimSpace(cells.Eq(colOficina).Text())
+
+	return &row, nil
+}
+
 // --- LOW LEVEL UTILITIES ---
 
 // ParseSpanishAmount transforms a string representation of a number to an int64
@@ -135,12 +214,23 @@ func extractBalance(html string, targetLabel string, currency bank.Currency) (*b
 func ParseSpanishAmount(s string) (int64, error) {
 	cleanStr := strings.NewReplacer(",", "", " ", "").Replace(s)
 
+	// Parse into float
 	floatVal, err := strconv.ParseFloat(cleanStr, 64)
 	if err != nil {
 		return 0, err
 	}
 
-	// 3. Scale by 100 and round to nearest integer to avoid float precision issues
-	// Adding 0.5 before casting to int64 is a classic "round to nearest" trick
-	return int64(floatVal*100 + 0.5), nil
+	// Round
+	return int64(math.Round(floatVal * 100)), nil
+}
+
+func ParseBankDate(s string) (time.Time, error) {
+	// 1. Clean up the string
+	cleanStr := strings.TrimSpace(s)
+	// 2. Parse using reference layout
+	t, err := time.Parse(BBVADateLayout, cleanStr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
 }
