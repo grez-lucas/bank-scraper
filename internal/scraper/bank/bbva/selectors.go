@@ -11,5 +11,6 @@ const (
 	SelectorAccountsTableRows = "#tabla-contenedor0_1 tbody tr:not(.tb_column_header)"
 
 	// Transactions Page
+	SelectorTransactionsTable     = "table#tabladatos"
 	SelectorTransactionsTableRows = "#tabladatos tbody tr:not(.tb_column_header):not(.tb_total)"
 )

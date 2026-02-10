@@ -110,8 +110,15 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 		return nil, err
 	}
 
+	txnTable := doc.Find(SelectorTransactionsTable)
+	if txnTable.Length() == 0 {
+		return nil, fmt.Errorf("%w: table not found with selector: %s", bank.ErrParsingFailed, SelectorTransactionsTable)
+	}
+
 	txnRows := doc.Find(SelectorTransactionsTableRows)
 
+	// NOTE: If no transactions are found but the table exists,
+	// we return an empty slice.
 	transactions := make([]bank.Transaction, txnRows.Length())
 
 	// Iterate over rows
@@ -125,7 +132,6 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 		// 2. Transform the data into a transaction
 		transactions[i] = *tempRow.ToTransaction()
 	})
-	fmt.Printf("DEBUG: Found %d transactions! Stored them in a slice of cap %d\n", len(transactions), cap(transactions))
 
 	return transactions, nil
 }
