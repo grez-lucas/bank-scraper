@@ -110,6 +110,12 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 		return nil, err
 	}
 
+	// 1. Check if we got an error indicating there's no movements
+	if hasNoMovements(doc) {
+		return []bank.Transaction{}, nil
+	}
+
+	// 2. Parse the transactions table
 	txnTable := doc.Find(SelectorTransactionsTable)
 	if txnTable.Length() == 0 {
 		return nil, fmt.Errorf("%w: table not found with selector: %s", bank.ErrParsingFailed, SelectorTransactionsTable)
@@ -211,6 +217,21 @@ func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
 	row.Oficina = strings.TrimSpace(cells.Eq(colOficina).Text())
 
 	return &row, nil
+}
+
+// hasNoMovements checks if the transaction page has a "No Movements" error.
+func hasNoMovements(doc *goquery.Document) bool {
+	selection := doc.Find(SelectorNoMovementsError)
+
+	if selection.Length() == 0 {
+		return false
+	}
+
+	// Verify the content of the error message to be 100% sure
+	expectedText := "No existen datos para los criterios de búsqueda indicados."
+	actualText := selection.Text()
+
+	return strings.Contains(actualText, expectedText)
 }
 
 // --- LOW LEVEL UTILITIES ---

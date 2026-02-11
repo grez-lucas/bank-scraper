@@ -13,4 +13,5 @@ const (
 	// Transactions Page
 	SelectorTransactionsTable     = "table#tabladatos"
 	SelectorTransactionsTableRows = "#tabladatos tbody tr:not(.tb_column_header):not(.tb_total)"
+	SelectorNoMovementsError      = "div.msj_ico.msj_err"
 )

@@ -230,19 +230,24 @@ func TestParseTransactions(t *testing.T) {
 // TODO: Add error parsing test cases for transactions
 
 func TestParseTransactions_InvalidHTML(t *testing.T) {
-	// FIX: This is failing cause we assume an invalid HTML is the same as no transactions
-	// We should check that the transaction table exists, that's a valid HTML.
-	// If said table does not exist, then we have an invalid HTML error.
 	html := `<html><body>Something unexpected happened</body></html>`
 
-	_, err := ParseTransactions(html)
+	txns, err := ParseTransactions(html)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
+	assert.Nil(t, txns)
 }
 
 func TestParseTransactions_EmptyTransactions(t *testing.T) {
-	// TODO: IMPLEMENT ME!
+	html := testutil.LoadFixture(t, "bbva", "transactions_empty")
+
+	got, err := ParseTransactions(html)
+
+	// NOTE: We should get no error and an empty transaction slice
+	assert.NoError(t, err)
+	assert.NotNil(t, got)
+	assert.Empty(t, got)
 }
 
 func TestParseTransactions_InvalidAmounts(t *testing.T) {
