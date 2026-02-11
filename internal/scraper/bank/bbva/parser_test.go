@@ -236,6 +236,7 @@ func TestParseTransactions_InvalidHTML(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
+	assert.ErrorContains(t, err, "table not found with selector:")
 	assert.Nil(t, txns)
 }
 

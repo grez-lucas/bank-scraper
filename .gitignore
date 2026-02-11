@@ -1,4 +1,5 @@
 .env
+*.png
 
 cover.out
 coverage.out
