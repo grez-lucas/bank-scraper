@@ -65,7 +65,6 @@ func (r *BBVARow) ToTransaction() *bank.Transaction {
 		absAmount = -absAmount
 	}
 
-	// TODO: Implement ME
 	return &bank.Transaction{
 		ID:           r.NDoc,
 		Reference:    "",
@@ -125,19 +124,29 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 
 	// NOTE: If no transactions are found but the table exists,
 	// we return an empty slice.
-	transactions := make([]bank.Transaction, txnRows.Length())
+	transactions := make([]bank.Transaction, 0, txnRows.Length())
 
+	var parseErr error
 	// Iterate over rows
 	txnRows.Each(func(i int, s *goquery.Selection) {
+		if parseErr != nil {
+			return
+		}
+
 		// 1. Parse the HTML row
 		tempRow, err := parseTransactionRow(s)
 		if err != nil {
+			parseErr = fmt.Errorf("failed to parse row: %d: %w", i, err)
 			return
 		}
 
 		// 2. Transform the data into a transaction
-		transactions[i] = *tempRow.ToTransaction()
+		transactions = append(transactions, *tempRow.ToTransaction())
 	})
+
+	if parseErr != nil {
+		return nil, parseErr
+	}
 
 	return transactions, nil
 }

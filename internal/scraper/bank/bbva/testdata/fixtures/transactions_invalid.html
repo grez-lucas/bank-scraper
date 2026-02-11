@@ -1,0 +1,725 @@
+<html><head>
+<title>Pagina de Scroll</title>
+
+
+
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"> 
+
+
+
+
+<!-- INI-RE-000001 Externalización de Codigos de Servicio -->
+
+
+
+<script language="JavaScript">
+	var FORMATO_IMPORTE ="0,000.00";
+	var FORMATO_FECHA ="dd-mm-aaaa";
+	var FORMATO_ESTILO ="1";
+    var JUNCTION ="/SPETLCL85";
+	
+	//document.write("<link rel=stylesheet type='text/css' media='screen' href='/SPETLCL85/mult/TLCLEstilo_f2"+FORMATO_ESTILO+".css' />");
+	//document.write("<link rel=stylesheet type='text/css' media='screen' href='/SPETLCL85/mult/TLCLEstilos_cash2"+FORMATO_ESTILO+".css' />");
+</script>
+<!-- <link rel=stylesheet type="text/css" media="print"  href="/mult/TLCLEstiloImprimeMetamenu.css" /> -->
+
+<script language="JavaScript">
+	var UTIL_PIBEE;
+	
+	if ('TLCL' == 'TLCL')
+		UTIL_PIBEE = "/SPEKYOP85/kyop_mult_web_pub/external/utilPibee.js";
+	else if ('TLCL' == 'TLHD')
+		UTIL_PIBEE = "/SPEKYOP85/kyop_mult_web_pub/external/utilPibee.js";
+	else
+		UTIL_PIBEE = "/SPETLCL85/mult/utilPibee.js";
+	document.write('<script type="text/javascript" language="JavaScript" src="'+UTIL_PIBEE+'"><\/script>');
+</script><script type="text/javascript" language="JavaScript" src="/SPEKYOP85/kyop_mult_web_pub/external/utilPibee.js"></script>
+
+<script type="text/javascript" language="JavaScript" src="/SPETLCL85/mult/jquery.js"></script>
+<script type="text/javascript" language="JavaScript" src="/SPETLCL85/mult/r7/webtoolkit.scrollabletable.js?vers=0.1860314978495572"></script>	
+<script type="text/javascript" language="JavaScript" src="/SPETLCL85/mult/webtoolkit.jscrollable.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/ 
+document.cookie="REDACTED";
+/*]]>*/ 
+</script>
+</head>
+<body marginwidth="0" marginheight="0" class="fond-pagina rwd-laptop" onload="controlPibee();">
+
+
+
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" type="text/css" href="/SPETLCL85/mult/css/base_pibee.css?ran=20160320_9" media="screen">
+<link rel="stylesheet" type="text/css" href="/SPETLCL85/mult/css/base_pibee_print.css?ran=20160320_9" media="print">
+<script type="text/javascript" language="JavaScript" src="/SPETLCL85/mult/js/utilPortalKyop.js"></script>
+
+<script language="javascript" src="/SPETLCL85/mult/fingerprint.min.js"></script>
+<script type="text/javascript" src="/SPETLCL85/mult/js/fpd2.js?v=20190730"></script> 
+<script type="text/javascript">
+var JUNCTION_CENT_PE = "SPECNET85"
+var JUNCTION_TLCL_PE = "SPETLCL85"
+var CONTEX_ROOT_CENT = "cent6_pe_web"
+var CONTEX_ROOT_TLCL = "tlcl_pe_web"
+
+var JUNCTION_TEMP = "/"+JUNCTION_CENT_PE+"/"+CONTEX_ROOT_CENT+"/servlet";
+var JUNCTION_TLCL = "/"+JUNCTION_TLCL_PE+"/"+CONTEX_ROOT_TLCL+"/servlet";
+var ipPortal = window.location.protocol + '//' + window.location.host;
+	console.log(JUNCTION_TEMP);
+	console.log(JUNCTION_TLCL);
+/*de regreso*/
+function completaDatosFraude(){
+
+if ( $("#hdnHoraHost").val().includes('||') ) {
+		$.post('/'+JUNCTION_TLCL_PE+'/'+CONTEX_ROOT_TLCL+'/banking_fraud.jsp', {
+				'codidoCentralSesion': $("#hdnHoraHost").val().split("||")[1]
+			}, function() {});
+	}
+	
+	antiFraudeTLCL($("#hdnEmpresaHost").val(),$("#hdnHoraHost").val());
+}
+
+function antiFraudeTLCL(empresa_host, hora_host){
+	console.log("inicio: "+empresa_host+" "+hora_host);
+		var nomEmpresaAf = empresa_host;
+		var cadenaSesion = hora_host;
+		console.log('cadena sesion: '+cadenaSesion);
+// 		cadenaSesion = "02-10-17||S||2||988776544";
+		var vector="";
+		var flagMuestra = "N";
+		var tipoPantalla = "";
+		var codCentralAF = "";
+		var poderFirma = "";
+		var pathDatazo = "";
+		var imgBanner = ".";
+		var urlBanner = ".";
+		var imgPopup = ".";
+		var urlPopup = ".";
+		
+		if ( cadenaSesion.includes('||') ) {
+			vector = cadenaSesion.split("||");
+			codCentralAF = vector[1];
+			poderFirma = vector[2];
+			flagMuestra = vector[3];
+			tipoPantalla = vector[4];
+			pathDatazo = vector[5];
+			imgBanner = vector[6];
+			urlBanner = vector[7];
+			imgPopup = vector[8];
+			urlPopup = vector[9];
+		} 
+		
+		antiFraude_original(empresa_host, codCentralAF, flagMuestra, tipoPantalla, poderFirma, pathDatazo, imgBanner, urlBanner, imgPopup, urlPopup);
+  
+		if(flagMuestra=="S"){
+			document.body.removeChild(document.querySelector('.datazo-modal'));
+			document.getElementById("cia_data_popup").style.display = "inline";
+			if(tipoPantalla=='1'){
+				document.getElementById("imgFreemium_Inf").style.display = "block";
+			}else{
+				document.getElementById("imgFreemium_Dec").style.display = "block";
+			}
+		}else{
+			eliminarElementoDOM(document.getElementById('cia_data_popup'));
+			if ( imgPopup != '.' ) {
+				document.querySelector('.datazo-img').onload = function() { 
+					document.querySelector('.datazo-modal').style.display = 'block';
+					parent.com.bbva.kyop.controller.CoreController.resizeMainContent();
+				}
+				document.querySelector('.datazo-img').src = pathDatazo + imgPopup;
+				if ( urlPopup != '.' )
+					document.getElementById('linkPopupDatazo').href = urlPopup;
+			}
+			else
+				document.body.removeChild(document.querySelector('.datazo-modal'));
+		}
+	
+		
+		
+	
+	parent.com.bbva.kyop.controller.CoreController.resizeMainContent();
+	
+}
+
+</script>
+
+<script type="text/javascript">
+
+
+
+$(document).ready(function(){
+
+	
+	
+	
+	/**/
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+	console.log(1);
+	
+	
+	
+	
+	/**/
+    crearIframe();
+    antiFraude();
+});
+
+
+function crearIframe(){
+	$('body').append('<iframe id="frameAfraude" style="display: none"></iframe>');
+	$('body').append('<iframe id="frameMonitorA" style="display: none"></iframe>');
+	$('body').append('<iframe id="frameMonitorB" style="display: none"></iframe>');
+	
+}
+
+function antiFraude(){
+console.log('En tlcl...');
+
+
+}
+
+function invocandoCENT(metodo, parametros){
+	var ip = document.URL;
+	var ipAC = (ip.substring(ip.indexOf("//")+2)).substring(0,(ip.substring(ip.indexOf("//")+2)).indexOf("/"));
+	var servidorViaje = "https://"+ipAC+JUNCTION_TEMP+"/PIBEE";
+	lanzaInvocadorCENT('007','3318','89990114','es_PE','OperacionCBTFServlet?proceso=ae_alerta_pr&operacion=ae_alerta_op&accion='+metodo+parametros ,servidorViaje,'N','kyop-central-load-area','true','','S');
+}
+
+function lanzaInvocadorCENT(producto, servicio, proceso, locale, pb_url, url_final, pb_xti_comprper, target, showLoadBox, des_url, xti_perhttp){
+	try{	
+	if (url_final && pb_url && pb_url.replace) {
+
+		var $wpd = $(window.parent.document);
+		var $iff = $wpd.find('#kyop-central-load-area-container');
+		
+		$iff.append('<iframe id="frameFraude" name="frameFraude" style="display:none" width="100%"></iframe>');
+		var $frm = $wpd.find('#kyop-process-form');
+		var frm = $frm[0];
+		
+		
+		$frm[0].onload = function() {
+			document.cookie="REDACTED";
+		};
+		
+		
+		if (frm) {
+			frm.pb_cod_prod.value = producto;
+			frm.pb_cod_serv.value = servicio;
+			frm.pb_cod_proc.value = proceso;
+			frm.LOCALE.value = locale;
+			
+			frm.pb_xti_comprper.value = pb_xti_comprper;
+			var pb_url_toPrint = pb_url.replace(/&amp;/gi, "&");
+			frm.pb_url.value = pb_url_toPrint;
+			
+			//INICIO - TICKET 2553 - Invocación desde HD Regional (Solución provisional)
+			var regExp = new RegExp("//[^/]*/");	
+			var dominio = '//' + window.top.location.host + '/';
+			url_final = url_final.replace( regExp, dominio );
+			//FINAL - TICKET 2553 - Invocación desde HD Regional (Solución provisional)
+			frm.action = componerURL(url_final, pb_url_toPrint);
+			frm.target = "frameFraude";						
+			/*if (target == "_ventana1") {// Se ejecuta el servicio en un popup
+				window.open('', '_ventana1', "menubar=0,resizable=0,toolbar=0,scrollbars=1,height=565,width=760").focus();
+			}*/
+			frm.submit();
+		}
+	}	
+	
+	}catch(err){}
+}	
+
+
+function antiFraude_original(nomEmpresaAf, codCentralAF, flagMuestra, tipoPantalla, poderFirma, pathDatazo, imgBanner, urlBanner, imgPopup, urlPopup){
+
+
+
+}
+
+/*extras*/
+function eliminarElementoDOM(elem){
+	elem.style.display = "none";
+	if(elem !== null)
+        while (elem.hasChildNodes())
+            elem.removeChild(elem.lastChild);
+    var padre = elem.parentNode;
+	padre.removeChild(elem);
+}
+//Implementacion de Antifraude
+
+function replaceall(str,replace,with_this)
+{
+    var str_hasil ="";
+    var temp;
+
+    for(var i=0;i<str.length;i++) // not need to be equal. it causes the last change: undefined..
+    {
+        if (str[i] == replace)
+        {
+            temp = with_this;
+        }
+        else
+        {
+                temp = str[i];
+        }
+
+        str_hasil += temp;
+    }
+
+    return str_hasil;
+}
+
+function componerURL(url_final, pb_url) {
+
+	if (url_final && url_final.indexOf && pb_url && pb_url.indexOf) {
+		var index = pb_url.indexOf('?');
+		if (index > -1) {
+			return url_final + (url_final.indexOf( '?' ) > -1 ? pb_url.substring(index + 1) : pb_url.substring(index));
+		}
+	}
+	return url_final;
+}
+
+function invocarBankingFraud(codigoCentral, flagMuestra, tipoPantalla, poderFirma, pathDatazo, imgBanner, urlBanner, imgPopup, urlPopup) {
+
+		var fingerprintv2 = MPFingerprintV2.getData();
+		fingerprintv2.then(function(_data) {
+			$.post(JUNCTION_TEMP + '/IncorporacionAperturaMasivaServlet', {
+				'flujo': 'BankingFraud',
+				'fingerprint': JSON.stringify(JSON.stringify(_data)),
+				'indAccion': 'N',
+				'codigoCentral': codigoCentral,
+				'flagMuestra': flagMuestra,
+				'tipoPantalla': tipoPantalla,
+				'pathDatazo': pathDatazo,
+				'imgBanner': imgBanner,
+				'urlBanner': urlBanner,
+				'imgPopup': imgPopup,
+				'urlPopup': urlPopup,
+				'poderFirma': poderFirma,
+				'sesionIdTlcl':'OK'
+			}, function(response) {
+				console.log('Respuesta WBF :: ' + response);
+				$.post('/'+JUNCTION_TLCL_PE+'/'+CONTEX_ROOT_TLCL+'/banking_fraud.jsp', {
+					'estilos': response,
+					'indicadorFreemium': response,
+					'flagMuestra': flagMuestra,
+					'tipoPantalla': tipoPantalla,
+					'pathDatazo': pathDatazo,
+					'imgBanner': imgBanner,
+					'urlBanner': urlBanner,
+					'imgPopup': imgPopup,
+					'urlPopup': urlPopup
+				}, function() {
+					if ( response == '1' )
+						redirigir();
+					else if ( response == '4' )
+						location.href = JUNCTION_TEMP + '/OperacionCBTFServlet?proceso=banking_fraud_pr&operacion=banking_fraud_op&accion=logout';
+				});
+			});
+		});
+
+}
+
+function redirigir() {
+	var form = document.createElement('form');
+	form.action = JUNCTION_TEMP + '/OperacionCBTFServlet?proceso=banking_fraud_pr&operacion=banking_fraud_op&accion=redirigir';
+	form.method = 'POST';
+	var input = document.createElement('input');
+	input.name = 'url';
+	input.type = 'hidden';
+	input.value = window.location.href;
+	form.appendChild(input);
+	document.body.appendChild(form);
+	form.submit();
+}
+function portalLogout() {
+	var form = document.createElement('form');
+	form.action = JUNCTION_TEMP + '/OperacionCBTFServlet?proceso=banking_fraud_pr&operacion=banking_fraud_op&accion=logout';
+	form.method = 'POST';
+	var input = document.createElement('input');
+	input.name = 'url';
+	input.type = 'hidden';
+	input.value = window.location.href;
+	form.appendChild(input);
+	document.body.appendChild(form);
+	form.submit();
+}
+</script>
+
+
+
+
+
+
+
+
+<script type="text/javascript" src="/BRcb6p6gq/G3T75-mg/y4k1oZF6/6k/YX5Lh8QauYG3wpOO/bjl5/DWEa/QHtCGwYC"></script>
+
+
+
+ 
+
+	
+
+
+
+
+	
+	<script language="javascript">
+
+		var UrlPaginarCuenta = "OperacionCBTFServlet?proceso=tlcl_sym_histmov_pr_multipais&operacion=tlcl_sym_hmhistoricomovimientos_op_multipais&accion=paginar&numOPRequest=" + (parseInt('4') + 1);  
+		var UrlPaginarMvtos  = "OperacionCBTFServlet?proceso=tlcl_sym_histmov_pr_multipais&operacion=tlcl_sym_hmhistoricomovimientos_op_multipais&accion=paginar&numOPRequest=" + (parseInt('4') + 1);  
+		var UrlDetalle       = "OperacionCBTFServlet?proceso=tlcl_sym_histmov_pr_multipais&operacion=tlcl_sym_hmhistoricomovimientos_op_multipais&accion=conceptoMovimiento&numOPRequest=" + (parseInt('4') + 1);  
+		var UrlDetalleSaldo  = "OperacionCBTFServlet?proceso=tlcl_sym_histmov_pr_multipais&operacion=tlcl_sym_hmhistoricomovimientos_op_multipais&accion=movimientosFechaOp&numOPRequest=" + (parseInt('4') + 1);  
+		var UrlVerExcel      = "OperacionCBTFServlet?proceso=tlcl_sym_histmov_pr_multipais&operacion=tlcl_sym_hmhistoricomovimientos_op_multipais&accion=verExcel&numOPRequest=" + (parseInt('4') + 1);  
+		var UrlVolver        = "OperacionCBTFServlet?proceso=tlcl_sym_histmov_pr_multipais&operacion=tlcl_sym_hmconfigurarseleccion_op_multipais&accion=volver&numOPRequest=" + (parseInt('4') + 1);  
+
+		function volver()
+		{
+			document.paginacion.action=UrlVolver;
+			document.paginacion.submit();	 
+		}
+	
+		function verExcel()
+		{
+			window.open(UrlVerExcel,'','menubar=yes'); 
+		}
+	
+	    function ponerFoco()
+		{
+			if(document.paginacion.iReg.value>0)
+			{
+				document.paginacion.listaCuentas.focus();
+			}
+		}
+		function paginarCuentas()
+		{
+			numeroCuenta=document.paginacion.listaCuentas.value;
+
+			if(numeroCuenta==-1) 
+			{
+   			    alert("Seleccione una cuenta, por favor.");
+			}else{
+				document.paginacion.numeroCuenta.value = numeroCuenta;
+				document.paginacion.action=UrlPaginarCuenta;
+				document.paginacion.submit();	
+			}
+		}
+		function paginarMvtosCuenta(numeroCuenta, numeroPagina)
+		{
+			document.paginacion.numeroCuenta.value = numeroCuenta;
+			document.paginacion.numeroPagina.value = numeroPagina;
+			document.paginacion.action=UrlPaginarMvtos;
+
+			document.paginacion.submit();				
+		}
+		function mostrarDetalleMvto(codMovimiento,concepto,importe, ctaBeneficiaria)
+		{
+
+			document.paginacion.codigoMovimiento.value = codMovimiento;
+			document.paginacion.importe.value = importe;
+			document.paginacion.concepto.value = concepto;
+			document.paginacion.ctaBeneficiaria.value = ctaBeneficiaria;
+			document.paginacion.action=UrlDetalle;
+			document.paginacion.submit();
+			
+		}
+		function mostrarDetalleSaldo(codSaldo,fechaSaldo)
+		{
+			document.paginacion.codigoMovimiento.value = codSaldo;
+			document.paginacion.fechaSaldo.value = fechaSaldo;
+			document.paginacion.action=UrlDetalleSaldo;
+			document.paginacion.submit();
+			
+		}
+	
+	</script>
+
+	
+ 	<script language="JavaScript" type="text/javascript" src="/SPETLCL85/mult/TLCLUtilidades_CAS.js" charset="ISO-8859-1"></script>
+
+	<script language="JavaScript">
+		jQuery(document).ready(function(){
+			var t = new ScrollableTable(document.getElementById('tabladatos'), 40);
+		});
+		
+	</script>
+
+
+
+<!-- INICIO: FORMULARIO PARA PAGINACION DE ASUNTOS -->
+<!--UNDOBR-->
+<!------------------------------RUTA------------------------------------------>
+<div class="miga">Consultas&nbsp;&gt;&nbsp;Cuentas</div>
+<!------------------------------FIN RUTA------------------------------------------>
+
+<div class="page_title">
+	<h2>Histórico de Movimientos</h2>
+</div>
+
+<form name="paginacion" method="post">
+
+<input type="hidden" name="numeroCuenta" value="0">
+<input type="hidden" name="numeroPagina" value="0">
+<input type="hidden" name="codigoMovimiento" value="0">
+<input type="hidden" name="importe" value="">
+<input type="hidden" name="concepto" value="">
+<input type="hidden" name="ctaBeneficiaria" value="">
+<input type="hidden" name="fechaSaldo" value="">
+<input type="hidden" name="iReg" value="0">
+
+
+<div class="form_container">
+	<div class="borde">
+		<div class="section_container">
+			<div class="section">
+				<table class="tb_form">
+				<tbody><tr class="tb_entry">
+					<td width="20%"><span class="ng">Período:</span></td>
+					<td width="30%"><span>de 23-01-2026 a 02-02-2026</span></td>
+					<td width="20%"><span class="ng">Primera Ordenación:</span></td>
+					<td width="30%"><span>FECHA OPERACIÓN</span></td>
+				</tr>
+				<tr class="tb_entry"> 
+					<td><span class="ng">Rango de Importe:</span></td>
+					<td><span>TODOS</span></td>
+					<td><span class="ng">Segunda Ordenación:</span></td>
+					<td><span>IMPORTE</span></td>
+				</tr>
+				<tr class="tb_entry"> 
+					<td><span class="ng">Código de Operación:</span></td>
+					<td colspan="3"><span>TODOS</span></td>
+				</tr>				
+				</tbody></table>			
+			</div>
+		</div>
+		
+		<div class="section_container">
+			<div class="subtitle">
+				<h3>Selección de Cuenta</h3>
+			</div>
+			<div class="section">
+				<table class="tb_form">
+				<tbody><tr class="tb_entry">	
+					<td width="20%">
+						<span class="ng">Cuenta Actual:</span>
+					</td>
+					<!-- EDA EPE07F2010 -->
+					
+					
+					<td><span>00110119530100064607 PEN TECHPACK S.A.C.</span></td>
+					
+				</tr>
+						
+				</tbody></table>
+			</div>
+		</div>
+	</div>
+</div>
+
+<table class="tb_data mn">
+<tbody><tr class="tb_header">
+	<th class="primero ta_l">
+	    <span>
+			
+				Importes en PEN
+						
+		</span>
+	</th>
+	
+<th class="ta_r ultimo">
+	<span>[Página 1/1]</span>
+</th>
+	
+</tr>
+</tbody></table>
+
+<!-- 21/07/2008:iccr:MP-2540470: Modifico el nombre de la class, para que si algún texto es muy largo salte de línea.-->
+
+<!------------------------------TABLA  DATOS------------------------------------------> 
+
+<div class="oa">
+	<div id="divtabla" class="div_print40" style="position: relative; overflow: auto;"><table class="tb_data" id="tabladatos" style="height: auto;">	
+	<tbody><tr class="tb_column_header">
+		<td><span>F. Operación</span></td>
+		<td><span>F. Valor</span></td>
+		<td><span>Código</span></td>
+		<td><span>Nº. Doc.</span></td>
+		<td><span>Concepto</span></td>
+		<td><span>Importe</span></td>
+		<td class="ultimo"><span>Oficina</span></td>
+	</tr>
+	
+						<!-- Aqui va la tabla -->
+						
+					
+							<tr class="tb_total">
+								<td colspan="5" class="ta_r"><span>Saldo Inicial 30-01-2026</span></td>
+								<td colspan="2"><span class="monedapos">8,555.83</span></td>
+							</tr>
+				
+							<tr class="odd">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>015</span></td>
+								<td class="ta_c"><span>0000001398     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1392','*C/ HAB4ta   0130007        ','-9,992.73','                    ')">*C/ HAB4ta   0130007        </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-9,992.73</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="even">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>015</span></td>
+								<td class="ta_c"><span>0000001400     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1390','*C/PH4OB                    ','-3,455.18','                    ')">*C/PH4OB                    </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-3,455.18</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="odd">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>015</span></td>
+								<td class="ta_c"><span>0000001396     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1394','*C/ HAB5ta   0130006        ','-2,000.00','                    ')">*C/ HAB5ta   0130006        </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-2,000.00</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="even">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>31-01-2026</span></td>
+								<td class="ta_c"><span>638</span></td>
+								<td class="ta_c"><span>0000001403     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1397','COMISION DE MANTENIMIENTO   ','-30.00','                    ')">COMISION DE MANTENIMIENTO   </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-30.00</span></td>
+								<td class="ta_l"><span>0923</span></td>
+							</tr>
+				
+							<tr class="odd">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>015</span></td>
+								<td class="ta_c"><span>0000001402     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1395','*/COMIS.TRASPASO OTRO BANCO-','-2.00','                    ')">*/COMIS.TRASPASO OTRO BANCO-</a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-2.00</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="even">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>527</span></td>
+								<td class="ta_c"><span>0000001395     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1389','ITF                         ','-0.90','                    ')">ITF                         </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-0.90</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="odd">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>527</span></td>
+								<td class="ta_c"><span>0000001399     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1391','ITF                         ','-0.45','                    ')">ITF                         </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-0.45</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="even">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>527</span></td>
+								<td class="ta_c"><span>INVALID: NOT A NUMBER</span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1396','ITF                         ','-0.15','                    ')">ITF                         </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-0.15</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="odd">
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>527</span></td>
+								<td class="ta_c"><span>0000001397     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1393','ITF                         ','-0.10','                    ')">ITF                         </a></td>
+					
+								<td class="ta_r"><span class="txtselecroj">-0.10</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="even">
+								<td class="ta_c"><span>INVALID-DATE-01-2026</span></td>
+								<td class="ta_c"><span>30-01-2026</span></td>
+								<td class="ta_c"><span>507</span></td>
+								<td class="ta_c"><span>0000001394     </span></td>
+				
+								<td class="ta_l"><a class="enlace" href="javascript:mostrarDetalleMvto('1398','ENTREGA A RENDIR            ','18,000.00','                    ')">ENTREGA A RENDIR            </a></td>
+					
+								<td class="ta_r"><span class="monedapos">18,000.00</span></td>
+								<td class="ta_l"><span>0437</span></td>
+							</tr>
+				
+							<tr class="tb_total">
+								<td colspan="5" class="ta_r"><a class="enlace" href="javascript:mostrarDetalleSaldo(2,'30-01-2026')">Saldo Final 30-01-2026</a></td>
+								<td colspan="2"><span class="monedapos">11,074.32</span></td>
+							</tr>
+				
+	</tbody></table></div>
+</div>
+
+<div class="formActionButtons">
+	<div class="ta_c">
+
+
+		<input type="button" class="bt bt_m bt_azul" name="bExcel" value="Exportar a Excel" onclick="javascript:verExcel()"> 
+	
+
+ 
+		<input type="button" class="bt bt_m bt_azul" value="Volver" onclick="javascript:volver()">
+	</div>
+</div>
+
+</form>
+
+<iframe id="frameAfraude" style="display: none"></iframe><iframe id="frameMonitorA" style="display: none"></iframe><iframe id="frameMonitorB" style="display: none"></iframe></body></html>
+

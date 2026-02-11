@@ -227,8 +227,6 @@ func TestParseTransactions(t *testing.T) {
 	assert.EqualValues(t, want, got)
 }
 
-// TODO: Add error parsing test cases for transactions
-
 func TestParseTransactions_InvalidHTML(t *testing.T) {
 	html := `<html><body>Something unexpected happened</body></html>`
 
@@ -251,8 +249,15 @@ func TestParseTransactions_EmptyTransactions(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-func TestParseTransactions_InvalidAmounts(t *testing.T) {
-	// TODO: IMPLEMENT ME using invalid.html fixture!
+func TestParseTransactions_InvalidRow(t *testing.T) {
+	html := testutil.LoadFixture(t, "bbva", "transactions_invalid")
+
+	got, err := ParseTransactions(html)
+
+	assert.Error(t, err)
+	assert.Nil(t, got)
+
+	assert.ErrorIs(t, err, bank.ErrParsingFailed)
 }
 
 func TestParseBankDate(t *testing.T) {
