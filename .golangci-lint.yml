@@ -1,0 +1,25 @@
+version: "2"
+
+run:
+  timeout: 2m
+  tests: false
+  relative-path-mode: gomod
+  modules-download-mode: readonly
+  concurrency: 2
+
+linters:
+  default: standard
+  enable:
+    - govet
+    - staticcheck
+    - revive
+    - errcheck
+  disable:
+    - gocyclo
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: true
+  new: false
+  fix: false

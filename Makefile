@@ -6,10 +6,42 @@ ccend=$(shell printf "\033[0m")
 
 .PHONY: capture-bbva
 
+# ============================== #
+# QUALITY CONTROL
+# ============================== #
+
+# tidy: tidy modifies and formats .go files
+.PHONY: tidy
+tidy: fmt
+
+# test: run all tests
+.PHONY: test
 test:
 	@printf "$(ccyellow)Testing files... $(ccend)\n"
 	go test -v ./... -short
 	@printf "$(ccgreen)Testing files done!$(ccend)\n"
+
+# test/cover: run all tests and display coverage
+.PHONY: test/cover
+test/cover:
+	@printf "$(ccyellow)Testing files... $(ccend)\n"
+	go test -v -buildvcs -coverprofile=/tmp/coverage.out ./...
+	go tool cover -html=/tmp/coverage.out
+	@printf "$(ccgreen)Testing files done!$(ccend)\n"
+	@printf "$(ccgreen)Displaying coverage...$(ccend)\n"
+
+# lint: run golangci-lint if installed, else print a fallback message
+.PHONY: lint
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run --config .golangci-lint.yml ./...; \
+	else \
+		@printf "$(ccred)golangci-lint is not installed. Please install it from https://github.com/golangci-lint$(ccend)\n"; \
+	fi
+
+# ============================== #
+# FIXTURES
+# ============================== #
 
 # Capture fixtures
 capture-bbva:
