@@ -3,6 +3,7 @@ package bbva
 import (
 	"fmt"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,20 @@ const (
 
 	BBVADateLayout = "02-01-2006"
 )
+
+type LoginErrorInfo struct {
+	Code       string
+	Message    string
+	HTTPStatus int
+}
+
+func (e *LoginErrorInfo) Error() string {
+	return fmt.Sprintf("[%d] (Code: %s) %s", e.HTTPStatus, e.Code, e.Message)
+}
+
+func (e *LoginErrorInfo) Unwrap() error {
+	return fmt.Errorf("%s", e.Error())
+}
 
 type BalanceResult struct {
 	USD bank.Balance
@@ -149,6 +164,48 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 	}
 
 	return transactions, nil
+}
+
+func DetectLoginError(html string, statusCode int) error {
+	// Handle HTTP errors first
+	switch statusCode {
+	case http.StatusServiceUnavailable, http.StatusTooManyRequests:
+		return &LoginErrorInfo{
+			Message:    "Bank service temporarily unavailable or rate limited",
+			HTTPStatus: statusCode,
+		}
+
+	case http.StatusForbidden:
+		return &LoginErrorInfo{
+			Message:    "Access forbidden - possible bot detection",
+			HTTPStatus: statusCode,
+		}
+	}
+
+	// Parse HTML for error details (handles 404 and 200 cases)
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		// Parse error - no login error page
+		return nil
+	}
+
+	code := strings.TrimSpace(doc.Find(SelectorLoginErrorCode).Text())
+	msg := strings.TrimSpace(doc.Find(SelectorLoginErrorSpan).Text())
+	if msg == "" {
+		// Check if the message is somewhere else - perhaps we got another html doc
+		msg = strings.TrimSpace(doc.Find(SelectorLoginErrorMessage).Text())
+	}
+
+	// No error found
+	if code == "" && msg == "" {
+		return nil
+	}
+
+	return &LoginErrorInfo{
+		Code:       code,
+		Message:    msg,
+		HTTPStatus: statusCode,
+	}
 }
 
 // --- PRIVATE DOMAIN LOGIC ---

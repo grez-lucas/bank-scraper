@@ -3,9 +3,19 @@ package bbva
 // CSS Selectors for BBVA Bank Web Portal
 const (
 	// Login page
-	SelectorCompanyInput  = "#empresa"
-	SelectorUserInput     = "#usuario"
-	SelectorPasswordInput = "#clave_acceso_ux"
+	SelectorCompanyInput  = "input#empresa"
+	SelectorUserInput     = "input#usuario"
+	SelectorPasswordInput = "input#clave_acceso_ux"
+
+	SelectorLoginButton = "button#enviarSenda"
+
+	// Login error page
+	SelectorLoginErrorCode    = "div.error-code.error-title"
+	SelectorLoginErrorMessage = "h1.title"
+	SelectorLoginErrorSpan    = "span#error-message.coronita-small-icon-warning.icon-info-svg-warning.span-error"
+
+	// Dashboard Page
+	SelectorDashboard = "table#kyop-boby-table.kyop-boby-table"
 
 	// Balance Page
 	SelectorAccountsTableRows = "#tabla-contenedor0_1 tbody tr:not(.tb_column_header)"

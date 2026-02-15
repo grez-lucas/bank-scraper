@@ -1,0 +1,38 @@
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml"><head> 
+	<meta charset="utf-8"> 
+	<title>BBVA</title>
+
+<style type="text/css"> html, body, div, img { margin: 0; padding: 0; border: 0; font-size: 100%; font: inherit; vertical-align: baseline; } /* HTML5 display-role reset for older browsers */ header { display: block; } body { line-height: 1; } html { font-family: "BentonSans-Regular", "Helvetica Neue", Arial, Helvetica, sans-serif; } #primary-nav { background: #072146; padding: 1.0em 2.0em; } #primary-nav img { height: 30px; width: auto; } .message-container { margin: 24px auto; width: 50%; } @media (max-width: 998px) { .message-container { margin: 24px 16px; width: auto; } } .message { padding: 24px 16px; background: #D5EDFB; color: #121212; font-weight: 600; } .message .icon { width: 24px; height: 24px; color: #5BBEFF; margin-bottom: 60px; } .message .title { font-size: 22px; padding-bottom: 16px; } .message .notification { font-size: 15px; padding-bottom: 16px; font-family: "BentonSans-Thin", "Helvetica Neue", Arial, Helvetica, sans-serif; } .message .description { font-size: 15px; padding-bottom: 16px; font-family: "BentonSans-Medium", "Helvetica Neue", Arial, Helvetica, sans-serif; } .message a { color: #418AC2; text-decoration: none; }
+</style></head>
+
+
+
+<body> 
+	<header> 
+		<div id="primary-nav">
+			<img src="https://www.bbva.es/Customdeny/logo_bbva_blanco.svg" alt="LOGO BBVA" title="LOGO BBVA">
+		</div> 
+	</header> 
+	<div class="message-container"> 
+		<div class="message"> 
+			<div class="icon">
+				<img src="https://www.bbva.es/Customdeny/Error4.png" alt="icon">
+			</div> 
+			<div class="title">Algo salió mal </div> 
+			<div class="notification">
+				<p>Reference ID: 0.c5ba1402.1771074752.cdeafb4f</p>
+				<p>IP: 181.43.123.93</p>
+				<p>Fecha/Hora: <span id="datetime">14.02.2026 10:12</span></p>
+			</div> 
+			<div class="description">Por favor, inténtalo más tarde.			</div>
+		</div> 
+	</div> 
+	
+<script>
+	var dt = new Date();
+	document.getElementById("datetime").innerHTML = (("0"+dt.getDate()).slice(-2)) +"."+ (("0"+(dt.getMonth()+1)).slice(-2)) +"."+ (dt.getFullYear()) +" "+ (("0"+dt.getHours()).slice(-2)) +":"+ (("0"+dt.getMinutes()).slice(-2));
+</script>
+
+
+
+</body></html>

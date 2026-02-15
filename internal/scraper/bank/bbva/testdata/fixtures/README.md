@@ -1,6 +1,6 @@
 # Fixture Metadata
 bank: bbva
-captured_at: 2026-02-11T13:11:36-03:00
+captured_at: 2026-02-15T11:51:12-03:00
 captured_by: luken
 
 ## Files

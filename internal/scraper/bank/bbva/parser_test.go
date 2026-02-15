@@ -260,6 +260,95 @@ func TestParseTransactions_InvalidRow(t *testing.T) {
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
 }
 
+func TestDetectLoginError_404(t *testing.T) {
+	html := testutil.LoadFixture(t, "bbva", "login_error_404")
+
+	gotErr := DetectLoginError(html, 404)
+
+	wantCode := "EAI0000"
+	wantMsg := "No pudimos iniciar tu sesión"
+	wantStatus := 404
+
+	assert.NotNil(t, gotErr)
+	assert.Error(t, gotErr)
+
+	var loginErr *LoginErrorInfo
+	assert.ErrorAs(t, gotErr, &loginErr)
+
+	assert.Equal(t, wantCode, loginErr.Code)
+	assert.Equal(t, wantMsg, loginErr.Message)
+	assert.Equal(t, wantStatus, loginErr.HTTPStatus)
+}
+
+func TestDetectLoginError_InvalidCredentials(t *testing.T) {
+	html := testutil.LoadFixture(t, "bbva", "login_error")
+
+	gotErr := DetectLoginError(html, 200)
+
+	assert.NotNil(t, gotErr)
+	assert.Error(t, gotErr)
+
+	var loginErr *LoginErrorInfo
+	assert.ErrorAs(t, gotErr, &loginErr)
+	assert.Equal(t, "", loginErr.Code)
+	assert.Equal(t, 200, loginErr.HTTPStatus)
+	assert.Equal(t, "Es necesario que corrijas los datos que ingresaste para poder continuar.", loginErr.Message)
+}
+
+func TestDetectLoginError_HTTPErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		hasFixture  bool
+		fixtureName string
+		statusCode  int
+		wantErr     bool
+		wantErrMsg  string
+	}{
+		{
+			name:       "503 Service Unavailable returns LoginErrorInfo",
+			hasFixture: false,
+			statusCode: 503,
+			wantErr:    true,
+			wantErrMsg: "Bank service temporarily unavailable or rate limited",
+		},
+		{
+			name:       "429 Rate Limited returns LoginErrorInfo",
+			hasFixture: false,
+			statusCode: 429,
+			wantErr:    true,
+			wantErrMsg: "Bank service temporarily unavailable or rate limited",
+		},
+		{
+			name:       "403 Forbidden returns LoginErrorInfo",
+			hasFixture: false,
+			statusCode: 403,
+			wantErr:    true,
+			wantErrMsg: "Access forbidden - possible bot detection",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var html string
+			if tc.hasFixture {
+				html = testutil.LoadFixture(t, "bbva", tc.fixtureName)
+			}
+
+			gotErr := DetectLoginError(html, tc.statusCode)
+
+			if !tc.wantErr {
+				assert.NoError(t, gotErr)
+			} else {
+				var loginErr *LoginErrorInfo
+				assert.ErrorAs(t, gotErr, &loginErr)
+
+				assert.Equal(t, tc.wantErrMsg, loginErr.Message)
+				assert.Equal(t, tc.statusCode, loginErr.HTTPStatus)
+			}
+		})
+	}
+}
+
 func TestParseBankDate(t *testing.T) {
 	tests := []struct {
 		name    string
