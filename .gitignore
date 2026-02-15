@@ -3,3 +3,7 @@
 
 cover.out
 coverage.out
+
+tmp/*
+
+CLAUDE.md
