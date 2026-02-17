@@ -1003,75 +1003,9 @@ func TestBBVAScraper_FullFlow_Live(t *testing.T) {
 
 ---
 
-## 7. Recording Sessions for Replay
+## 7. Recording Sessions for Replay (Manual HAR Recording)
 
-Create a helper script to record bank sessions:
-
-**scripts/record-session/main.go:**
-
-```go
-package main
-
-import (
-	"flag"
-	"fmt"
-	"os"
-	"os/signal"
-	"path/filepath"
-	"syscall"
-
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
-)
-
-func main() {
-	bankCode := flag.String("bank", "", "Bank code (bbva, interbank, bcp)")
-	flag.Parse()
-
-	if *bankCode == "" {
-		fmt.Println("Usage: go run main.go -bank=bbva")
-		os.Exit(1)
-	}
-
-	// Create recordings directory
-	recordDir := filepath.Join("internal/scraper/bank", *bankCode, "testdata/recordings")
-	os.MkdirAll(recordDir, 0755)
-
-	// Launch visible browser for manual interaction
-	url := launcher.New().
-		Headless(false).           // Show browser
-		Devtools(true).            // Open devtools
-		MustLaunch()
-
-	browser := rod.New().
-		ControlURL(url).
-		Trace(true).               // Log all actions
-		MustConnect()
-
-	// Start tracing
-	tracePath := filepath.Join(recordDir, "session.trace")
-
-	fmt.Println("🎬 Recording started!")
-	fmt.Printf("   Navigate the %s portal manually\n", *bankCode)
-	fmt.Println("   Press Ctrl+C when done")
-	fmt.Printf("   Trace will be saved to: %s\n", tracePath)
-
-	// Wait for interrupt
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	<-c
-
-	browser.Close()
-	fmt.Println("\n✅ Recording saved!")
-}
-
-```
-
----
-
-## 7.1 Manual HAR Recording (For Banks with Bot Detection)
-
-Some banks use advanced bot detection (e.g., BBVA with Akamai Bot Manager) that blocks automated browsers even with stealth mode. In these cases, use manual HAR recording through Chrome DevTools.
+Banks like BBVA use advanced bot detection (Akamai Bot Manager) that blocks automated browsers even with stealth mode. The solution is to record HTTP traffic manually using Chrome DevTools.
 
 ### Why Manual Recording?
 
@@ -1205,15 +1139,10 @@ test-live:
 # Default: only unit tests
 test: test-unit
 
-# Record sessions
-record-bbva:
-	go run ./scripts/record-session/main.go -bank=bbva
-
-record-interbank:
-	go run ./scripts/record-session/main.go -bank=interbank
-
-record-bcp:
-	go run ./scripts/record-session/main.go -bank=bcp
+# Sanitize HAR recordings before commit
+sanitize-har:
+	@echo "Sanitizing HAR files..."
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login_success
 
 # Update fixtures (save current HTML)
 update-fixtures:

@@ -56,3 +56,11 @@ sanitize-preview:
 	go run ./scripts/sanitize-patterns/main.go -bank=bbva --dry-run
 
 
+# ============================== #
+# HAR Recordings
+# ============================== #
+
+# Sanitize recordings:
+sanitize-recordings:
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-success
+
