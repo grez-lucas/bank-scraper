@@ -9,6 +9,7 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrSessionExpired     = errors.New("session expired")
 	ErrBankUnavailable    = errors.New("bank page is unavailable")
+	ErrBotDetection       = errors.New("bot detection triggered")
 	ErrUnknown            = errors.New("unknown error")
 
 	ErrParsingFailed = errors.New("failed to parse bank response")

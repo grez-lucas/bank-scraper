@@ -12,6 +12,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/stealth"
+	browserutil "github.com/grez-lucas/bank-scraper/internal/scraper/browser"
 )
 
 // Pages to capture for each bank
@@ -118,7 +119,7 @@ func main() {
 		}
 
 		// -- Step 1: Wait for DOM to stabilize, including iframes
-		waitForIFrames(page)
+		browserutil.WaitForIFrames(page)
 		time.Sleep(1 * time.Second)
 
 		// -- Step 2: Screenshot BEFORE DOM modification --
@@ -168,60 +169,6 @@ func main() {
 	fmt.Println("⚠️  IMPORTANT: Sanitize sensitive data before committing!")
 	fmt.Println("   Run: go run ./scripts/sanitize-fixtures/main.go -bank=" + *bankCode)
 	fmt.Println("════════════════════════════════════════════════════════════════")
-}
-
-// GetDeepestVisibleFrame recursively waits for the DOM to be stable,
-// checks for visible iframes, and dives into them.
-// If no visible iframe is found, it returns the current scope (the page itself).
-func GetDeepestVisibleFrame(page *rod.Page) *rod.Page {
-	// 1. Wait for DOM to be stable
-	page.MustWaitDOMStable()
-
-	// 2. Get a list of iframes
-	iframes, err := page.Elements("iframe")
-	if err != nil {
-		return page // Return the page if an error occurs
-	}
-
-	// 3. iterate to find the "Content" iframe
-	for _, frame := range iframes {
-		if visible, _ := frame.Visible(); visible {
-			child := frame.MustFrame()
-			return GetDeepestVisibleFrame(child)
-		}
-	}
-
-	// 4. If no iframes are found, return the page
-	return page
-}
-
-// waitForIFrames waits for the main page to reach DOM stability
-// before capture.
-func waitForIFrames(page *rod.Page) {
-	// 1. Wait for DOM to be stable
-	page.MustWaitDOMStable()
-
-	// 2. Get a list of iframes
-	iframes, err := page.Elements("iframe")
-	if err != nil {
-		fmt.Printf("Error getting iframes: %v", err)
-		return
-	}
-
-	for _, iframe := range iframes {
-		visible, _ := iframe.Visible()
-		if !visible {
-			continue
-		}
-
-		frame, err := iframe.Frame()
-		if err != nil {
-			continue
-		}
-
-		waitForIFrames(frame)
-
-	}
 }
 
 // inlineIframesAndCapture replaces all <iframe> elements in the live DOM with

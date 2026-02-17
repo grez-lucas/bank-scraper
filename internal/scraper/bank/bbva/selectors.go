@@ -6,8 +6,7 @@ const (
 	SelectorCompanyInput  = "input#empresa"
 	SelectorUserInput     = "input#usuario"
 	SelectorPasswordInput = "input#clave_acceso_ux"
-
-	SelectorLoginButton = "button#enviarSenda"
+	SelectorLoginButton   = "button#enviarSenda"
 
 	// Login error page
 	SelectorLoginErrorCode    = "div.error-code.error-title"
