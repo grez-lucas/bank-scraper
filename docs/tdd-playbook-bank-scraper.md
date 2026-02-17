@@ -1069,6 +1069,120 @@ func main() {
 
 ---
 
+## 7.1 Manual HAR Recording (For Banks with Bot Detection)
+
+Some banks use advanced bot detection (e.g., BBVA with Akamai Bot Manager) that blocks automated browsers even with stealth mode. In these cases, use manual HAR recording through Chrome DevTools.
+
+### Why Manual Recording?
+
+During development of the BBVA scraper, we discovered that Akamai Bot Manager detects automated browsers through:
+- TLS fingerprinting
+- JavaScript execution patterns
+- Mouse/keyboard behavior timing
+- IP reputation and request patterns
+
+Even passive CDP network monitoring triggered 403 errors with "Algo salió mal" (Something went wrong) messages. The solution is to record HTTP traffic manually using your regular Chrome browser.
+
+### Recording Steps
+
+1. **Open Chrome** (your regular browser, not automated)
+
+2. **Open DevTools**: Press `F12` or `Cmd+Option+I` (Mac) / `Ctrl+Shift+I` (Windows/Linux)
+
+3. **Go to Network tab**
+
+4. **Enable "Preserve log"**: Check the checkbox to keep requests across page navigations
+
+5. **Clear existing entries**: Click the 🚫 icon to start fresh
+
+6. **Navigate to the bank login page**:
+   - BBVA: `https://www.bbvanetcash.pe/DFAUTH85/mult/KDPOSolicitarCredenciales_es.html`
+
+7. **Complete the login flow** with valid credentials
+
+8. **Wait for the dashboard/success page** to fully load
+
+9. **Export HAR file**: Right-click in the Network panel → **"Save all as HAR with content"**
+
+10. **Save to recordings directory**:
+    ```
+    internal/scraper/bank/{bank}/testdata/recordings/{scenario}.har.json
+    ```
+
+### HAR File Naming Convention
+
+| Scenario | Filename |
+|----------|----------|
+| Successful login | `login_success.har.json` |
+| Invalid credentials | `login_error.har.json` |
+| Session expired | `session_expired.har.json` |
+| Balance fetch | `balance_success.har.json` |
+| Transactions list | `transactions_success.har.json` |
+
+### Sanitize Before Commit
+
+**CRITICAL:** HAR files contain sensitive data including passwords, session tokens, and cookies. Always sanitize before committing.
+
+```bash
+# Sanitize using conventional path
+go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login_success
+
+# Or specify paths directly
+go run ./scripts/sanitize-har/main.go -input=recording.har.json -output=sanitized.har.json
+
+# Preview what will be redacted (dry run)
+go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login_success -dry-run
+```
+
+The sanitizer automatically redacts:
+- Passwords and credentials (`password`, `clave`, `secret`)
+- Session tokens and cookies (`token`, `session`, `auth`, `jwt`)
+- API keys (`api_key`, `apikey`)
+- Sensitive headers (`Authorization`, `Cookie`, `Set-Cookie`, `X-CSRF-Token`)
+
+### Chrome vs Simplified HAR Format
+
+Chrome DevTools exports HAR 1.2 format with a `log` wrapper:
+```json
+{
+  "log": {
+    "version": "1.2",
+    "entries": [...]
+  }
+}
+```
+
+Our `LoadHAR()` function auto-detects this format and converts it to our simplified internal format. Both formats work transparently with the replay system.
+
+### Running Replay Tests
+
+```bash
+# Run replay tests for BBVA
+SCRAPER_TEST_MODE=replay go test ./internal/scraper/bank/bbva/... -v
+
+# Run specific replay test
+SCRAPER_TEST_MODE=replay go test ./internal/scraper/bank/bbva/... -v -run TestBBVAScraper_Login_ReplaySuccess
+```
+
+### Troubleshooting
+
+**Recording shows 0 requests:**
+- Ensure "Preserve log" is checked before navigating
+- Make sure you waited for pages to fully load
+
+**Test fails with "no recording found":**
+- Check the HAR file path matches what the test expects
+- Verify the HAR file isn't empty
+- Run with verbose mode: `WithVerbose(true)` in test setup
+
+**403 errors in recording:**
+- This indicates bot detection triggered during your session
+- Try again from a different browser profile
+- Wait a few minutes and retry (may be rate limiting)
+- Use a different network/IP if available
+
+---
+
 ## 8. Makefile for Test Workflow
 
 ```makefile

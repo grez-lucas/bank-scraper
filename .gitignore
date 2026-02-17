@@ -7,3 +7,5 @@ coverage.out
 tmp/*
 
 CLAUDE.md
+
+testdata/recordings/*
