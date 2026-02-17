@@ -21,6 +21,18 @@ test:
 	go test -v ./... -short
 	@printf "$(ccgreen)Testing files done!$(ccend)\n"
 
+# test-ingegration: run with recorded sessions
+test-integration:
+	@printf "$(ccyellow)Running integration tests... $(ccend)\n"
+	SCRAPER_TEST_MODE=replay go test ./internal/scraper/bank/... -v
+	@printf "$(ccgreen)Testing files done!$(ccend)\n"
+
+# test-live: run against live banks (dangerous!!)
+test-live:
+	@printf "$(ccyellow)WARNING: This will hit live bank websites!$(ccend)\n"
+	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y"]
+	SCRAPER_TEST_MODE=live go test ./internal/scraper/bank/... -v -count=1
+
 # test/cover: run all tests and display coverage
 .PHONY: test/cover
 test/cover:
