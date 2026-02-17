@@ -116,11 +116,12 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	assert.Equal(t, "Login", scraperErr.Operation)
 }
 
-func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.T) {
+// TODO: Add non-legacy test...
+func TestBBVAScraper_Login_ReplayErrorInvalidCredentialsLegacy_Integration(t *testing.T) {
 	skipUnlessMode(t, TestModeReplay)
 
 	// Load recorded error session
-	harPath := filepath.Join("testdata", "recordings", "login-invalid-credentials.har.json")
+	harPath := filepath.Join("testdata", "recordings", "login-invalid-credentials-legacy.har.json")
 	if _, err := os.Stat(harPath); os.IsNotExist(err) {
 		t.Skipf("Recording not found: %s\n", harPath)
 	}
@@ -152,4 +153,8 @@ func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.
 	require.ErrorIs(t, err, bank.ErrInvalidCredentials, "Error cause should be Invalid Credentials")
 	assert.Equal(t, bank.BankBBVA, scraperErr.BankCode)
 	assert.Equal(t, "Login", scraperErr.Operation)
+
+	// Verify error details from HAR contain expected error code and message
+	assert.Contains(t, scraperErr.Details, "EAI0000", "Details should contain error code")
+	assert.Contains(t, scraperErr.Details, "No pudimos iniciar tu sesión", "Details should contain error message")
 }
