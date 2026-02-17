@@ -6,7 +6,10 @@ const (
 	SelectorCompanyInput  = "input#empresa"
 	SelectorUserInput     = "input#usuario"
 	SelectorPasswordInput = "input#clave_acceso_ux"
-	SelectorLoginButton   = "button#enviarSenda"
+	// Use legacy button to bypass micro-frontend postMessage flow.
+	// The #enviarSenda button sends credentials to an iframe via postMessage,
+	// which doesn't work in HAR replay mode.
+	SelectorLoginButton = "button#aceptar"
 
 	// Login error page
 	SelectorLoginErrorCode    = "div.error-code.error-title"

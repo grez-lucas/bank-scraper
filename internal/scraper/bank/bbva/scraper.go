@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -18,6 +19,10 @@ import (
 const (
 	baseURL  = "https://www.bbvanetcash.pe"
 	loginURL = baseURL + "/DFAUTH85/mult/KDPOSolicitarCredenciales_es.html"
+
+	// dfServletPath is the login form submission endpoint - we capture its
+	// status code to detect bot detection (403) or other server errors.
+	dfServletPath = "/DFAUTH85/slod_pe_web/DFServlet"
 
 	defaultTimeout = 30 * time.Second
 
@@ -98,13 +103,22 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	router := page.HijackRequests()
 
 	if s.hijacker != nil {
-		// Use custom hijacker (for replay testing)
-		router.MustAdd("*", s.hijacker)
+		// Use custom hijacker (for replay testing) and capture status code
+		router.MustAdd("*", func(ctx *rod.Hijack) {
+			s.hijacker(ctx)
+			// Only capture status code for the login form submission (DFServlet)
+			// Ignore analytics/tracking requests that would overwrite with 200
+			if ctx.Response != nil && strings.Contains(ctx.Request.URL().Path, dfServletPath) {
+				statusCode = ctx.Response.Payload().ResponseCode
+			}
+		})
 	} else {
 		// Default: capture HTTP status code from real requests
 		router.MustAdd("*", func(ctx *rod.Hijack) {
 			ctx.LoadResponse(http.DefaultClient, true)
-			if ctx.Response != nil {
+			// Only capture status code for the login form submission (DFServlet)
+			// Ignore analytics/tracking requests that would overwrite with 200
+			if ctx.Response != nil && strings.Contains(ctx.Request.URL().Path, dfServletPath) {
 				statusCode = ctx.Response.Payload().ResponseCode
 			}
 		})
@@ -152,9 +166,6 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 			Details:   fmt.Sprintf("post-login load failed: %v", err),
 		}
 	}
-
-	// FIXME: Add if status code isn't captured correcty
-	// time.Sleep(100*time.Millisecond)
 
 	html, err := page.HTML()
 	if err != nil {
@@ -209,6 +220,9 @@ func (s *BBVAScraper) Close() error {
 }
 
 func (s *BBVAScraper) isLoginSuccessful(page *rod.Page) bool {
+	// Wait for DOM to stabilize after post-login JavaScript execution
+	page.MustWaitDOMStable()
+
 	_, err := page.Element(SelectorDashboard)
 	return err == nil
 }

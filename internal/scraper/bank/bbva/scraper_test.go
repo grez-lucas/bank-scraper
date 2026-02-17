@@ -91,7 +91,7 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	// Create scraper with replay hijacker
 	scraper, err := NewBBVAScraper(
 		WithHijacker(replayer.Middleware()),
-		WithTimeout(30*time.Second),
+		WithTimeout(10*time.Second),
 	)
 	require.NoError(t, err)
 	defer func() { _ = scraper.Close() }()
@@ -110,6 +110,46 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	// Verify it's a scraper error with invalid credentials cause
 	var scraperErr *bank.ScraperError
 	require.ErrorAs(t, err, &scraperErr, "Error should be a ScraperError")
+	require.ErrorIs(t, err, bank.ErrBotDetection, "Error cause should be Bot Detection")
+
+	assert.Equal(t, bank.BankBBVA, scraperErr.BankCode)
+	assert.Equal(t, "Login", scraperErr.Operation)
+}
+
+func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.T) {
+	skipUnlessMode(t, TestModeReplay)
+
+	// Load recorded error session
+	harPath := filepath.Join("testdata", "recordings", "login-invalid-credentials.har.json")
+	if _, err := os.Stat(harPath); os.IsNotExist(err) {
+		t.Skipf("Recording not found: %s\n", harPath)
+	}
+
+	har := testutil.MustLoadHAR(t, harPath)
+	replayer := testutil.NewReplayer(har)
+
+	// Create scraper with replay hijacker
+	scraper, err := NewBBVAScraper(
+		WithHijacker(replayer.Middleware()),
+		WithTimeout(10*time.Second),
+	)
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	ctx := context.Background()
+	session, err := scraper.Login(ctx, Credentials{
+		CompanyCode: "invalid",
+		UserCode:    "invalid",
+		Password:    "invalid",
+	})
+
+	require.Error(t, err, "Login should fail with recorded error session")
+	assert.Nil(t, session, "Session should be nil on error")
+
+	// Verify it's a scraper error with invalid credentials cause
+	var scraperErr *bank.ScraperError
+	require.ErrorAs(t, err, &scraperErr, "Error should be a ScraperError")
+	require.ErrorIs(t, err, bank.ErrInvalidCredentials, "Error cause should be Invalid Credentials")
 	assert.Equal(t, bank.BankBBVA, scraperErr.BankCode)
 	assert.Equal(t, "Login", scraperErr.Operation)
 }

@@ -119,8 +119,11 @@ func (r *Replayer) Middleware() func(*rod.Hijack) {
 }
 
 // serveRecordedResponse serves a recorded HAR entry as the response.
+// For 3xx redirects, it follows the redirect chain and returns the final response.
 func (r *Replayer) serveRecordedResponse(ctx *rod.Hijack, entry *HAREntry) {
-	resp := entry.Response
+	// Follow redirect chain if this is a 3xx response
+	finalEntry := r.followRedirects(entry)
+	resp := finalEntry.Response
 
 	// Decode body if base64 encoded
 	var body []byte
@@ -139,7 +142,7 @@ func (r *Replayer) serveRecordedResponse(ctx *rod.Hijack, entry *HAREntry) {
 	for _, h := range resp.Headers {
 		name := strings.ToLower(h.Name)
 		// Skip problematic headers
-		if name == "content-encoding" || name == "content-length" {
+		if name == "content-encoding" || name == "content-length" || name == "location" {
 			continue
 		}
 		protoHeaders = append(protoHeaders, &proto.FetchHeaderEntry{
@@ -168,6 +171,58 @@ func (r *Replayer) serveRecordedResponse(ctx *rod.Hijack, entry *HAREntry) {
 	payload.ResponseCode = resp.Status
 	payload.ResponseHeaders = protoHeaders
 	payload.Body = body
+}
+
+// followRedirects follows a redirect chain and returns the final entry.
+// If the entry is not a redirect or the target is not in the HAR, returns the original entry.
+func (r *Replayer) followRedirects(entry *HAREntry) *HAREntry {
+	const maxRedirects = 10
+	current := entry
+
+	for i := 0; i < maxRedirects; i++ {
+		// Check if this is a redirect (3xx status)
+		if current.Response.Status < 300 || current.Response.Status >= 400 {
+			return current
+		}
+
+		// Find the Location header
+		var location string
+		for _, h := range current.Response.Headers {
+			if strings.ToLower(h.Name) == "location" {
+				location = h.Value
+				break
+			}
+		}
+
+		if location == "" {
+			return current
+		}
+
+		if r.verbose {
+			log.Printf("[replayer] following redirect: %d -> %s", current.Response.Status, location)
+		}
+
+		// Look up the redirect target
+		target, found := r.exactMatches[location]
+		if !found {
+			// Try path-only match
+			if parsed, err := url.Parse(location); err == nil {
+				pathKey := parsed.Scheme + "://" + parsed.Host + parsed.Path
+				target, found = r.pathMatches[pathKey]
+			}
+		}
+
+		if !found {
+			if r.verbose {
+				log.Printf("[replayer] redirect target not in HAR: %s", location)
+			}
+			return current
+		}
+
+		current = target
+	}
+
+	return current
 }
 
 // serveNotFound serves a 404 response for unmatched requests.
