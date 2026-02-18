@@ -75,4 +75,6 @@ sanitize-preview:
 # Sanitize recordings:
 sanitize-recordings:
 	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-success
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-bot-detection
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-invalid-credentials-legacy
 
