@@ -1227,3 +1227,90 @@ update-fixtures:
 ```
 
 This approach gives you confidence that parsing logic is correct while minimizing flaky browser tests.
+
+---
+
+## 11. BBVA HAR Recordings Checklist
+
+Track which HAR recording scenarios exist and which need to be captured. All files live in `internal/scraper/bank/bbva/testdata/recordings/`.
+
+### How HAR Recordings Map to Tests
+
+Each HAR file feeds one replay test. The replayer intercepts **every** HTTP request the browser makes during that test and serves the matching recorded response. This means:
+
+- Each HAR must contain **all** HTTP traffic the browser will generate during the test — page loads, assets, XHRs, redirects, analytics, etc.
+- Recordings **do overlap** when a later action requires loading a page first. For example, `transactions-load-more` contains the full history page load **plus** the "Ver mas" XHR. It is a superset of `transactions-all`.
+- Each recording is captured in a **separate** DevTools session: clear the Network tab, perform the actions, export. Do not try to record multiple scenarios in one session.
+
+### Recording Procedures
+
+| # | Filename | Status | Start | Actions to Record | Stop |
+|---|----------|--------|-------|-------------------|------|
+| 1 | `login-success.har.json` | Exists | Open login page (`KDPOSolicitarCredenciales_es.html`) in a fresh tab | Dismiss cookie popup (if present) → fill company/user/password → click `#aceptar` (legacy button) → follow redirect | Dashboard page is fully loaded and idle (no spinners) |
+| 2 | `login-invalid-credentials-legacy.har.json` | Exists | Open login page in a fresh tab | Dismiss cookie popup (if present) → fill **wrong** credentials → click `#aceptar` | Error page is displayed with error code (e.g. `EAI0000`) |
+| 3 | `login-bot-detection.har.json` | Exists | Open login page in a fresh tab | Fill credentials → click `#aceptar` → server returns 403 | 403 page or "Algo salio mal" error is visible. Keep as-is |
+| 4 | `dashboard-load.har.json` | **NEW** | Already logged in. Open DevTools, clear Network, check "Preserve log" | Navigate to dashboard URL (or reload if already there) | Dashboard fully loaded: all account balances visible, sidebar rendered, no spinners |
+| 5 | `accounts-page.har.json` | **NEW** | Already logged in, on dashboard. Clear Network | Click "Accounts" in sidebar → dismiss news popup if it appears | Accounts page fully loaded: account list, balance summaries by currency, latest 10 movements visible for both PEN and USD accounts |
+| 6 | `transactions-all.har.json` | **NEW** | Already logged in, on accounts page. Clear Network | Click "Ver todos los movimientos" on any account (PEN or USD — same table format) | Full transaction history page loaded with first 50 transactions |
+| 7 | `transactions-load-more.har.json` | **NEW** | Already logged in, on accounts page. Clear Network | Click "Ver todos los movimientos" → wait for page load → click "Ver mas" | Second page of 50 transactions appended. Recording contains **both** the initial page load and the pagination XHR |
+| 8 | `logout.har.json` | **NEW** | Already logged in, on any post-login page. Clear Network | Click logout button in sidebar → confirmation modal appears → confirm logout | Redirected to login page or logged-out confirmation |
+
+> **No separate PEN/USD recordings:** The accounts page shows movements for both currencies on the same page, and the transaction table format is identical for PEN and USD. One recording per scenario is sufficient. Currency-specific parsing is covered by HTML fixture tests instead.
+
+### Recording Tips
+
+- **Login recordings (1-3):** Start from a fresh tab (not logged in). Use the legacy button (`#aceptar`) so DFServlet responses are captured.
+- **Post-login recordings (4-8):** Log in first using your regular browser, **then** open DevTools and clear the Network tab before starting. The login traffic itself should NOT be in these recordings.
+- **Overlap is expected:** Recording #7 is a superset of #6 (it includes the initial page load). This is correct — each test is independent and the replayer needs all traffic for that test's full execution.
+- **One scenario per export:** Never try to capture multiple scenarios in one Network session. Clear and re-export for each.
+- **Sanitize before commit:** Run `make sanitize-recordings` to redact credentials and tokens.
+
+---
+
+## 12. BBVA HTML Fixtures Checklist
+
+Track which HTML fixtures exist and which need to be captured or re-captured. All files live in `internal/scraper/bank/bbva/testdata/fixtures/`.
+
+> **No separate PEN/USD transaction fixtures:** The transaction table format is identical for both currencies — the same `ParseTransactions` function handles both. One set of transaction fixtures covers all parser code paths. Balance fixtures ARE separate because `ParseBalancePEN` and `ParseBalanceUSD` look at different rows in the accounts table.
+
+### Login fixtures (unchanged)
+
+| # | Fixture | On Disk | Used in Tests | Notes |
+|---|---------|---------|---------------|-------|
+| 1 | `login_page.html` | Yes | — | Keep as-is |
+| 2 | `login_error.html` | Yes | `TestDetectLoginError_InvalidCredentials` | Keep as-is |
+| 3 | `login_error_404.html` | Yes | `TestDetectLoginError_404` | Keep as-is |
+| 4 | `login_error_403_forbidden.html` | Yes | — | Keep as-is |
+
+### Balance fixtures (re-capture for redesign)
+
+| # | Fixture | On Disk | Used in Tests | Notes |
+|---|---------|---------|---------------|-------|
+| 5 | `balance_pen.html` | Yes | `TestParseBalance_PEN` | **Re-capture** from new accounts page layout |
+| 6 | `balance_usd.html` | Yes | `TestParseBalance_USD` | **Re-capture** from new accounts page layout |
+| 7 | `balance_empty.html` | Yes | `TestParseBalance_NoAccountsTable...` | **Re-capture** — verify error state unchanged |
+| 8 | `balance_invalid.html` | Yes | `TestParseBalance_InvalidAmount` | Keep (synthetic test data) |
+
+### Transaction fixtures (re-capture, single set for both currencies)
+
+| # | Fixture | On Disk | Used in Tests | Notes |
+|---|---------|---------|---------------|-------|
+| 9 | `transactions.html` | Yes | `TestParseTransactions` | **Re-capture** — verify table structure unchanged |
+| 10 | `transactions_empty.html` | Yes | `TestParseTransactions_EmptyTransactions` | **Re-capture** — verify error message unchanged |
+| 11 | `transactions_invalid.html` | Yes | `TestParseTransactions_InvalidRow` | Keep (synthetic test data) |
+| 12 | `transactions_load_more.html` | Empty | — | **Capture** — page state after clicking "Ver mas" |
+
+### Post-login fixtures (new redesigned pages)
+
+| # | Fixture | On Disk | Used in Tests | Notes |
+|---|---------|---------|---------------|-------|
+| 13 | `dashboard.html` | Yes | — | **Re-capture** — new design with inline balances + sidebar |
+| 14 | `news_popup.html` | Yes | — | Exists (captured from dashboard news/feature popup) |
+| 15 | `logout_modal.html` | Yes | — | Exists (captured from logout confirmation page) |
+| 16 | `cookie_popup.html` | — | — | **NEW** — cookie consent dialog on login page |
+
+### Capture Instructions
+
+1. Open Chrome, navigate to the page, and save as HTML (`Ctrl+S` / `Cmd+S`)
+2. Save to `internal/scraper/bank/bbva/testdata/fixtures/`
+3. **Sanitize before commit:** Run `make sanitize-fixtures` to redact account numbers, balances, and PII

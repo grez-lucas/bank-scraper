@@ -204,3 +204,66 @@ SelectorDashboard = "table#kyop-boby-table.kyop-boby-table"
 | DFServlet 302 + no dashboard | `ErrUnknown` |
 | Senda API 403 (micro-frontend) | `ErrInvalidCredentials` |
 | Connection/timeout errors | `ErrBankUnavailable` |
+
+---
+
+## 2026 Redesign (Post-Login Pages)
+
+> As of February 2026, BBVA redesigned all post-login pages. The login page itself remains unchanged.
+
+### What Changed
+
+| Area | Before | After |
+|------|--------|-------|
+| Login page | Same | **Unchanged** (legacy `#aceptar` flow still works) |
+| Dashboard | Table-based (`#kyop-boby-table`) | New layout with inline balances for all accounts + sidebar navigation |
+| Accounts | Separate balance pages | Single accounts page with balance summary by currency |
+| Transactions | Same table structure | "Ver todos los movimientos" with full history back to Jan of previous year |
+| Logout | Direct link | Sidebar button + confirmation modal |
+| Session timeout | 10 minutes | **Unchanged** (10 minutes without activity) |
+
+### Cookie Consent Popup
+
+The login page now shows a cookie consent popup on first visit. The scraper must dismiss it before interacting with the login form. The popup is non-blocking (login form is still in the DOM) but may overlap input fields.
+
+### Dashboard
+
+After login, the dashboard now shows:
+- Balances for **all accounts** directly on the main page (no navigation needed)
+- Sidebar with navigation links: Accounts, Transfers, etc.
+- Logout button in the sidebar
+
+The old dashboard selector (`table#kyop-boby-table.kyop-boby-table`) may no longer work. New selectors need to be captured from the live page.
+
+### Accounts Page
+
+Navigating to the accounts page from the sidebar shows:
+- **News/feature popup** (temporary, appears on first visit after redesign) - must be dismissed
+- **Latest 10 movements** per account displayed inline
+- **Total balance by currency** (PEN and USD summaries)
+- Link to "Ver todos los movimientos" for full transaction history
+
+### Transactions (Full History)
+
+Clicking "Ver todos los movimientos" on an account shows:
+- Transaction history going back to **January of the previous year**
+- **50 transactions per page**
+- **"Ver mas" button** for pagination (loads next 50)
+- Same transaction data fields (date, description, amount, balance)
+
+### Logout Flow
+
+Logout is no longer a direct link/redirect:
+1. Click logout button in the sidebar
+2. Confirmation modal appears ("Are you sure?")
+3. Confirm to complete logout
+
+### Scraper Impact
+
+| Component | Action Required |
+|-----------|----------------|
+| `selectors.go` | Add cookie popup selector, update dashboard selector, add sidebar/accounts/logout selectors |
+| `scraper.go` | Add `dismissCookiePopup` helper, update `isLoginSuccessful` for new dashboard |
+| `parser.go` | New parsers for accounts page, dashboard balances, full history pagination |
+| Fixtures | Re-capture all post-login fixtures, add new ones for accounts/transactions/logout |
+| HAR recordings | Record new scenarios for dashboard, accounts, transactions, logout |
