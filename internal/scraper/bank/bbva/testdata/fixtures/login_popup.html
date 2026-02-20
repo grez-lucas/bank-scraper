@@ -1,616 +1,108 @@
-<html><head><script type="text/javascript">
-/*<![CDATA[*/ 
-document.cookie="REDACTED";
-/*]]>*/ 
-</script>
-
-
-
-	<link rel="shortcut icon" type="image/x-icon" href="../images/favicon.ico">
-    <title>BBVA Net Cash</title>
-	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-	<meta http-equiv="Pragma" content="no-cache">
-	<meta http-equiv="Expires" content="0">
-    <meta http-equiv="Content-Style-Type" content="text/css">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge;IE=9;IE=10;IE=11">
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-    <meta http-equiv="Content-Language" content="es">
-	<meta name="viewport" content="initial-scale=1">
-    <script type="text/javascript" src="js/plantilla.js?v=3.0"></script>
-    <script type="text/javascript" src="js/direccionPIBEE.js?v=3.0"></script>
-    <script type="text/javascript" src="js/keyBoard_es.js?v=3.0"></script>
-	<script type="text/javascript" src="js/cookie.js?v=3.0"></script>
-	<script type="text/javascript" src="sph/js/spherica.js?v=200225"></script>
-	<script type="text/javascript" src="sph/js/pwd-validation.js?v=200225"></script>
-	
-	<script>
-		if (window.location.host == "bbvanetcash.pe") {
-			window.location.host = "www.bbvanetcash.pe";
-		}
-	</script>
-
-	<script>
-		let scriptBioNC = document.createElement("script");
-		if (window.location.host == "www.bbvanetcash.pe" || window.location.host == "bbvanetcash.pe") {
-			scriptBioNC.src = "https://bcdn-stats.bbvanetcash.pe/scripts/7ef308be/7ef308be_ncw.js";
-		} else if (window.location.hostname.indexOf(".bbvanetcash.pe") != -1) {
-			scriptBioNC.src = "https://bcdn-stats.bbvanetcash.pe/scripts/181e494/a3edf858.js";
-		}
-		document.getElementsByTagName("head")[0].appendChild(scriptBioNC);
-    </script><script src="https://bcdn-stats.bbvanetcash.pe/scripts/7ef308be/7ef308be_ncw.js"></script>
-
-    <!-- CSS de Bootstrap -->
-    <link href="css/bootstrap.css?v=3.0" rel="stylesheet" media="screen">
-    <link href="css/bootstrap-bbva.css?v=3.0" rel="stylesheet" media="screen">
-	<link href="sph/css/coronita.css?v=200225" rel="stylesheet" media="screen">
-	<link href="sph/css/input.css?v=200225" rel="stylesheet" media="screen">
-	<link href="sph/css/justments.css?v=200225" rel="stylesheet" media="screen">
-	<link href="sph/css/spherica.css?v=200225" rel="stylesheet" media="screen">
-	<link href="sph/css/structure.css?v=200225" rel="stylesheet" media="screen">
-
-	<script>
-		function cargandoDatos() {
-			initializeCoronitaIcons();
-			if (typeof cdApi !== 'undefined') {
-				cdApi.resetSessionNumber();
-				cdApi.changeContext('Login');
-			}
-			document.getElementById("empresa_aux").style.display = "none";
-			document.getElementById("usuario_aux").style.display = "none";
-			document.getElementById("empresa").style.display = "block";
-			document.getElementById("usuario").style.display = "block";
-			document.getElementById("empresa_aux").value="";
-			document.getElementById("usuario_aux").value="";
-			document.getElementById("empresa").value="";
-			document.getElementById("usuario").value="";
-
-			var cre = getCookie("CRE");
-			if (cre != null && cre.length > 1) {
-				key = getKeyServlet('', '', cre, 1);
-				if (key.length > 4) {
-					res = key.split("-");
-					var empresaTemp = res[0];
-					var usuarioTemp  = res[1];
-					var empre = res[2];
-					var user  = res[3];
-					document.getElementById("empresa").value = empre;
-					document.getElementById("usuario").value = user;
-					document.getElementById("empresaTemp").value = empresaTemp;
-					document.getElementById("usuarioTemp").value = usuarioTemp;
-					document.getElementById("activateEncryptLastUsuario").value = "Y";
-					document.getElementById("activateEncryptLastEmpresa").value = "Y";
-					document.getElementById("empresa").classList.add("has-value");
-					document.getElementById("usuario").classList.add("has-value");
-				}
-			}
-		}
-
-		function reglaPass() {
-			if (document.getElementById("empresa").value.trim() != "" && document.getElementById("usuario").value.trim() != "" && document.logon.eai_password.value.trim() != "" ){
-				document.getElementById("aceptar").disabled = false;
-				document.getElementById("enviarSenda").disabled = false;
-			} else {
-				document.getElementById("aceptar").disabled = true;
-				document.getElementById("enviarSenda").disabled = true;
-			}
-		}
-
-		function validaCampos() {
-			var nav = navigator.appName;
-			if (nav == "Microsoft Internet Explorer") {
-				var ie = navigator.userAgent.toLowerCase();
-				var version = parseInt(ie.split('msie')[1]);
-				if (version == 9) {
-					empresa = document.getElementById("empresa").value;
-					usuario = document.getElementById("usuario").value;
-					psw = document.logon.eai_password.value;
-					if(empresa == ""){alert("Este es un campo necesario"); document.getElementById("empresa").focus(); return false;}
-					if(usuario == ""){alert("Este es un campo necesario"); document.getElementById("usuario").focus(); return false;}
-					if(psw == ""){alert("Este es un campo necesario"); document.logon.eai_password.focus(); return false;}
-				}
-			}
-			validarFormulario();
-			return true;
-		}
-
-		function abrirformularios() {
-			if (window.location.host == "www.bbvanetcash.pe" || window.location.host == "bbvanetcash.pe") {
-				window.open('https://extranetperu.grupobbva.pe/onboarding-netcash/');//PROD
-			} else if (window.location.hostname.indexOf("qa.bbvanetcash.pe") != -1) {
-				window.open('https://extranetdev.grupobbva.pe/conboarding-netcash/');//QA
-			} else if (window.location.hostname.indexOf("test.bbvanetcash.pe") != -1) {
-				window.open('https://extranetdev.grupobbva.pe/tonboarding-netcash/');//DEV
-			} else {
-				window.open('https://extranetperu.grupobbva.pe/onboarding-netcash/');
-			}
-		}
-		function abrirCatalogo() {
-			window.open('catalogosServicios.html','','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=NO, width=900px,height=1000 ');
-		}
-		function abrir() {
-			window.open('seguridad_emp.htm','','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=NO, width=655px,height=950');
-		}
-		function abrirPolitica() {
-			window.open('politicasSeguridad.html','','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=NO, width=655px,height=900');
-		}
-		function resetearUsuario() {
-			document.getElementById("reset").action = "/DFAUTH85/slod_pe_web/DRServlet";
-			document.getElementById("reset").submit();
-		}
-	</script>
-
-	<script>
-		window.addEventListener('load', function () {
-			let user = document.getElementById('usuario');
-			let reference = document.getElementById('empresa');
-			let password = document.getElementById('clave_acceso_ux');
-
-			let empresaTemp = document.getElementById("empresaTemp");
-			let usuarioTemp = document.getElementById("usuarioTemp");
-
-			const button = document.querySelector('#enviarSenda');
-			const buttonLegacy = document.querySelector("#aceptar");
-			const labelMessageError = document.querySelector('#error-message');
-			const iframeContainer = document.querySelector('#iframe-container');
-			const loginContainer = document.getElementById('login-form');
-
-			const originLegacy = "https://www.bbvanetcash.pe";
-			const iframeOrigin = 'https://www.bbvanetcash.pe/nextgenempresascoexistencia';
-			const iframeSrc = "https://www.bbvanetcash.pe/nextgenempresascoexistencia/login/index.html"
-			const urlPortalSenda =  "https://www.bbvanetcash.pe/nextgenempresas/portal/index.html"
-
-			
-
-			const iframe = document.querySelector('#microfrontend');
-  			iframe.src = iframeSrc
-
-			const RESPONSE_LOGIN_COD = {
-    			DO_REDIRECT_SENDA: "DO_REDIRECT_SENDA",
-    			DO_LOGIN_LEGACY: "DO_LOGIN_LEGACY",
-    			ONE_TIME_PASSWORD: "ONE_TIME_PASSWORD",
-    			BLOQUED_USER: "BLOQUED_USER",
-    			TOKEN_BLOQUED: "TOKEN_BLOQUED",
-    			LOGIN_ERROR: "LOGIN_ERROR",
-    			USER_NOT_EXIST: "USER_NOT_EXIST",
-    			INVALID_PASSWORD: "INVALID_PASSWORD",
-    			UNKNOWN_LOGIN_ERROR: "UNKNOWN_LOGIN_ERROR",
-    			RESIZE_ON: "RESIZE_100",
-    			RESIZE_OFF: "RESIZE_0",
-    			EAI0000: "EAI0000",
-    			EA160: "EA160",
-				EA161: "EA161",
-    			TBD: "TBD",
-    			EA162: "EA162",
-				EA164: "EA164",
-  			}
-
-  			const MESSAGE_ERROR = {
-    			BLOQUED_USER: 'Tu usuario est\u00E1 bloqueado. Por favor, comun\u00EDcate con nuestra L\u00EDnea Empresas al (01) 595-1200 para ayudarte.',
-    			TOKEN_BLOQUED: 'Los datos ingresados son incorrectos. Alcanzaste el l\u00EDmite de intentos.',
-    			LOGIN_ERROR: 'Ha ocurrido un error al authenticarse, int\u00E9ntalo nuevamente.',
-    			USER_NOT_EXIST: "Es necesario que corrijas los datos que ingresaste para poder continuar.",
-    			INVALID_PASSWORD: "Es necesario que corrijas los datos que ingresaste para poder continuar.",
-    			UNKNOWN_LOGIN_ERROR: "Usuario no disponible."
-  			}
-
-			const getData = () => {
-  				return {
-    				user: (isFormatData(user.value) ? usuarioTemp.value : user.value).toUpperCase(),
-    				code: isFormatData(reference.value) ? empresaTemp.value : reference.value,
-    				password: password.value,
-    				message: 'From legacy app',
-  				};
-			};
-
-			const isFormatData = (value) => value.includes("**")
-
-			/**
-			 * Send a custom message to an iframe.
-			 *
-			 * @param {Object} data Postmessage payload
-			 */
-			function _dispatchPostMessageToIframe(data) {
-				iframe.contentWindow.postMessage(
-					data,
-					iframeOrigin !== '*' ? iframeOrigin : '*'
-				);
-				//fullScreenIframe();
-			}
-
-			/**
-			 * Handle add text message error
-			*/
-			function _setTextMessageErrorInLabel(text) {
-  				labelMessageError.textContent = `${text}`;
-				document.getElementById("error-message").style.display = "block";
-			}
-
-			/**
-			 * Handle reset text message error
-			*/
-			function _resetTextMessageErrorInLabel() {
-				labelMessageError.textContent = "";
-				document.getElementById("error-message").style.display = "none";
-			}
-
-			function minimizeIframe() {
-    			iframeContainer.style.display = 'none';
-    			loginContainer.style.display = '';
-  			}
-
-  			function fullScreenIframe() {
-    			const height = window.innerHeight;
-    			iframe.style.height = `${height}px`;
-    			iframeContainer.style.display = '';
-    			loginContainer.style.display = 'none';
-  			}
-
-			/**
- 			* Handle switch validate show error login.
- 			*/
-			 function _validateLoginError(eventName, detail) {
-				switch (eventName) {
-            		case RESPONSE_LOGIN_COD.DO_REDIRECT_SENDA:
-                		location.href = urlPortalSenda
-                	break;
-            		case RESPONSE_LOGIN_COD.DO_LOGIN_LEGACY:
-                		buttonLegacy.click()
-                	break;
-      	    		case RESPONSE_LOGIN_COD.UNKNOWN_LOGIN_ERROR:
-						buttonLegacy.click()
-      		    	break;
-      	    		case RESPONSE_LOGIN_COD.LOGIN_ERROR:
-      	 	    		if (detail.message === RESPONSE_LOGIN_COD.USER_NOT_EXIST) {
-      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
-      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.EA161) {
-      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.INVALID_PASSWORD)
-      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.EAI0000) {
-      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
-      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.EA160) {
-      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
-      	 	    		} else if (detail.code === RESPONSE_LOGIN_COD.TBD) {
-      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.USER_NOT_EXIST)
-      	 	    		} else {
-      	 	    			buttonLegacy.click()
-      	 	    		}
-      		    	break;
-      	    		case RESPONSE_LOGIN_COD.BLOQUED_USER:
-						if (detail.code === RESPONSE_LOGIN_COD.EA164) {
-      	 	    			_setTextMessageErrorInLabel(MESSAGE_ERROR.TOKEN_BLOQUED)
-					  	} else if (detail.code === RESPONSE_LOGIN_COD.EA162) {
-							_setTextMessageErrorInLabel(MESSAGE_ERROR.BLOQUED_USER)
-					  	}
-					  	minimizeIframe()
-      		    	break;
-					case RESPONSE_LOGIN_COD.RESIZE_ON:
-						fullScreenIframe()
-					break;
-					case RESPONSE_LOGIN_COD.RESIZE_OFF:
-						minimizeIframe()
-					break;
-      	    		default:
-      				break
-        		}
-			}
-
-			/**
-			 * function remenber data
-			*/
-			function validaCampos() {
-				var nav = navigator.appName;
-				if (nav == "Microsoft Internet Explorer") {
-					var ie = navigator.userAgent.toLowerCase();
-					var version = parseInt(ie.split('msie')[1]);
-					if (version == 9) {
-						empresa = document.getElementById("empresa").value;
-						usuario = document.getElementById("usuario").value;
-						psw = document.logon.eai_password.value;
-						if(empresa == ""){alert("Este es un campo necesario"); document.getElementById("empresa").focus(); return false;}
-						if(usuario == ""){alert("Este es un campo necesario"); document.getElementById("usuario").focus(); return false;}
-						if(psw == ""){alert("Este es un campo necesario"); document.logon.eai_password.focus(); return false;}
-					}
-				}
-				validarFormulario();
-				return true;
-			}
-
-			/**
-			 * Handle button click by sending a postmessage to
-			 * the iframe.
-			 */
-			 button.addEventListener('click', (e) => {
-				validaCampos();
-				e.preventDefault();
-				_resetTextMessageErrorInLabel()
-				_dispatchPostMessageToIframe(getData());
-			});
-
-			/**
-			 *Handle the communication messages from the iframe.
-			 */
-			 window.addEventListener('message', ({origin, data}) => {
-				console.log('GET MESSAGE CELLS: ', origin, data);
-				const { event, detail } = data
-				if(origin === originLegacy) {
-    				_validateLoginError(event, detail)
-				}
-			});
-			minimizeIframe();
-			_resetTextMessageErrorInLabelConditional();
-		})
-	</script>
-<script>bazadebezolkohpepadr="345995035"</script><script type="text/javascript" src="https://www.bbvanetcash.pe/akam/13/149f7779" defer=""></script></head>
-<body onload="cargandoDatos();direccion();">
-	<input type="hidden" name="empresaTemp" id="empresaTemp" value="01130674">
-	<input type="hidden" name="usuarioTemp" id="usuarioTemp" value="ANALIST1">
-	<input type="hidden" name="activateEncryptLastUsuario" id="activateEncryptLastUsuario" value="Y">
-	<input type="hidden" name="activateEncryptLastEmpresa" id="activateEncryptLastEmpresa" value="Y">
-	<!-- HEADER de spherica INICIO-->
-	<header>
-		<div class="header-content">
-			<div class="header-title">
-				<a class="header-global-logo" href="https://www.bbva.pe/"></a>
-				<a class="header-link desktop" role="link" tabindex="0" aria-disabled="false" target="_blank" href="https://www.bbva.pe/" id="">
-					<span>Ir a BBVA Perú</span>
-				</a>
-			</div>
-		</div>
-	</header>
-	<!-- HEADER de spherica FINAL-->
-    <div class="container color-container">
-		<div id="login-form" style="">
-
-			<!-- new body spherica INICIO-->
-			<div class="step-container" style="height: 715px; overflow: visible; flex-grow: 1;">
-				<div id="wizard-slide-viewer" style="left: 0px;">
-					<div class="footer_description">
-						<div id="identificacion" data-noprev="true" data-title="Paso 1 de 2" data-required-check="true" style="display: block;">
-							<div class="main-content">
-
-								<form name="logon" method="POST" action="https://www.bbvanetcash.pe/DFAUTH85/slod_pe_web/DFServlet" onsubmit="return validaCampos();">
-									<input type="hidden" name="origen" value="pibee">
-        							<input type="hidden" name="valor">
-									<div class="form-principal main-row">
-										<div id="main-form" class="step-content-container">
-											<div id="title" class="spherica-title">
-												<span><span class="spherica-title"></span>Te damos la bienvenida</span>
-											</div>
-
-											<div id="hostError" class="host-error"></div>
-
-											<div class="spherica-sub-title">Completa tus datos y disfruta de BBVA Empresas</div>
-
-											<div class="recuperaClave">
-												<div class="row">
-													<div class="col-lg-12">
-														<div class="coronita-form-group">
-															<i class="icon-limpiar-input-alone"></i>
-															<input type="text" id="empresa" name="cod_emp" class="form-control required number gr coronita-input has-value" maxlength="8" placeholder="" tabindex="1" data-msg-required="Necesitas completar este campo." onfocus="pintar(this);modificarDatosIngreso('empresa')" onblur="despintar(this)" autocomplete="off" title="Código de empresa" required="" style="display: block;">
-															<input type="text" class="form-control coronita-input" style="display: none" name="cod_emp_aux" id="empresa_aux" tabindex="1" title="empresa" maxlength="8">
-															<label for="empresa" class="control-label">Código de empresa <span title="" class="icon-info-16 icon-pos-global tooltip-help icon-tooltip-des"></span></label>
-																
-															<div class="coronita-input-label coronita-small-margin-bottom">
-																<div class="coronita-texto-con-icono">
-																	<span class="coronita-small-icon icon-info-svg"></span>
-																	<div class="coronita-small-font-zise coronita-info-label">El código de empresa tiene 8 caracteres.</div>
-																</div>
-															</div>
-														</div>
-													</div>
-												</div>
-
-
-												<div class="row">
-													<div class="col-lg-12">
-														<div class="coronita-form-group">
-															<i class="icon-limpiar-input-alone"></i>
-															<input type="text" id="usuario" name="cod_usu" class="form-control required number sm coronita-input clave-cajero has-value" maxlength="8" placeholder="" tabindex="2" data-msg-required="Necesitas completar este campo." onfocus="pintar(this);modificarDatosIngreso('usuario')" onblur="despintar(this)" autocomplete="off" title="Código de usuario" required="" style="display: block;">
-															<input type="text" class="form-control coronita-input" style="display: none" name="cod_usu_aux" id="usuario_aux" tabindex="2" title="usuario" maxlength="8">
-															<label for="usuario" class=" control-label">Código de usuario <span title="" class="icon-info-16 icon-pos-global tooltip-help icon-tooltip-des" data-original-title="Ingresa la clave de 4 dÃ­gitos que utilizas en nuestros cajeros."></span></label>
-																
-															
-															<div class="coronita-input-label coronita-small-margin-bottom">
-																<div class="coronita-texto-con-icono">
-																	<span class="coronita-small-icon icon-info-svg"></span>
-																	<div class="coronita-small-font-zise coronita-info-label">El código de usuario puede tener de 4 a 8 caracteres.</div>
-																</div>
-															</div>
-														</div>
-													</div>
-												</div>
-
-												<div class="row coronita-small-margin-bottom-password">
-													<div class="col-lg-12">
-														<div class="coronita-form-group">
-															<i class="icon-limpiar-input-alone"></i>				
-															<input type="password" id="clave_acceso_ux" name="eai_password" class="form-control  required number sm coronita-input clave-cajero" maxlength="36" tabindex="3" data-msg-required="Necesitas completar este campo." autocomplete="off" title="Contraseña" onfocus="pintar(this)" onblur="despintar(this,'#ffffff')" data-msg-minlength="Por favor, no escribas menos de 4 dÃ­gitos." required="">
-															<label class=" control-label" for="clave_acceso_ux" id="clave_acceso">Contraseña</label>	
-															<div class="question-div">
-																<a class="link_text" onclick="resetearUsuario()">¿Olvidaste tu clave de acceso?</a>
-															</div>	
-														</div>
-													</div>
-												</div>
-
-																							
-
-												<div class="form-group form-check-out">
-													<label class="lbl-cb" style="display: block;">
-														<div class="form-check-group">
-															<input id="checkRecData" name="checkRecData" value="true" type="checkbox" tabindex="4" style="display: inline-block;" checked="checked">
-															<span class="span-div">Recordar código de empresa y usuario</span>	
-														</div>
-													</label>
-												</div>
-
-												<input type="hidden" name="idioma" value="">
-												<input type="hidden" name="eai_user" value=""> 
-												<input type="hidden" value="" name="eai_URLDestino">
-												
-												<div class="clearfix"></div>
-													<!-- <span id="error-icon" ></span> -->
-													<span id="error-message" class="coronita-small-icon-warning icon-info-svg-warning span-error" style="display: block;"></span>
-													
-												
-												<div class="d-flex">
-													<div class="button-bar clearfix width-add">
-														<button type="submit" class="btn arrow-right next wizardNext" id="enviarSenda" title="Ingresar" disabled="true">Ingresar</button>
-														<button type="submit" style="width: 5px; height: 5px;background: transparent;position: absolute;top: 0;bottom: 0;border: none;" id="aceptar" title="Ingresar" disabled="true"></button>
-													</div>
-													<div class="button-bar clearfix width-add wrap-nowrap">
-														<a class="btn arrow-right next wizardNext grey link-hover" onclick="abrirformularios()" title="Contrata BBVA Empresas">Contrata BBVA Empresas</a>
-													</div>
-												</div>	
-
-											</div>
-										</div>
-									</div>
-								</form>
-
-								<form id="reset" name="reset" method="POST">
-									<input type="hidden" name="dr_pagInicial" value="S">
-									<input type="hidden" name="origen" value="pibee">
-								</form>
-
-								<div style="display: block;">
-									<div class="form-note main-row section-visibility hidden-xs" style="margin-bottom: 15px;">
-										<div class="img-card-glass"></div>
-										<h2 class="form-subtitle">BBVA Empresas: tus finanzas al día con unos clics</h2>
-										<div class="note-div">
-											<img src="sph/images/Investment.svg">
-											<p class="note-p">Gestiona la tesorería de tu empresa con nuestra plataforma digital</p>
-										</div>
-										<div class="note-div">
-											<img src="sph/images/Bank.svg">
-											<p class="note-p">Accede a nuestros servicios desde bbvanetcash.pe</p>
-										</div>
-									</div>
-
-									<div class="row">
-										<div class="col-lg-12">
-											<div class="coronita-form-group coronita-form-group-info">
-												<span class="coronita-small-icon icon-info-svg"></span>
-												<p class="p-info">Ten en cuenta que nunca solicitaremos tus contraseñas por ningún medio. </p>
-											</div>
-										</div>
-									</div>
-								</div>
-
-							</div>
-							
-							<div class="link-catolog">
-								<a href="javascript:abrirCatalogo();">Conoce nuestros servicios</a>
-							</div>
-							<a class="link-catolog mobile" role="link" tabindex="0" aria-disabled="false" target="_blank" href="https://www.bbva.pe/" id="">
-								<span>Ir a BBVA Perú</span>
-							</a>
-							<div class="col-lg-12 link-catolog-info">
-								<span style="font-weight: bold;">Llámanos al (01) 595-1200</span>
-							</div>
-							<div class="col-lg-12 link-catolog-info info-year">
-								<p>© <script>document.write(new Date().getFullYear())</script>2026 BBVA S.A.</p>
-							</div>
-						</div>		
-					</div>
-				</div>
-			</div>
-
-
-		</div>
-		<div id="iframe-container" class="iframe-container" style="display: none;">
-			<div data-captured-iframe="true" data-iframe-src="https://www.bbvanetcash.pe/nextgenempresascoexistencia/login/index.html" data-iframe-id="microfrontend" data-iframe-name="" data-iframe-width="100%"><style data-from-iframe="true">@font-face {
-  font-family: 'Benton Sans';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-Book-Lite.woff2)
-        format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-Book-Lite.woff)
-        format('woff');
+<html lang="es-PE"><head><meta charset="utf-8"><meta name="description" content=""><meta name="format-detection" content="telephone=no"><meta name="msapplication-tap-highlight" content="no"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BBVA Empresas</title><link rel="shortcut icon" type="image/x-icon" href="resources/images/touch/favicon.ico"><meta name="theme-color" content="#303F9F"><link rel="manifest" href="manifest.json"><meta name="msapplication-TileColor" content="#3372DF"><meta name="mobile-web-app-capable" content="yes"><meta name="application-name" content="staticScaffold"><link rel="icon" sizes="192x192" href="resources/images/touch/chrome-touch-icon-192x192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="staticScaffold"><link rel="apple-touch-icon" href="resources/images/touch/favicon.ico"><link rel="stylesheet" href="styles/main.css"><script type="text/javascript" id="www-widgetapi-script" src="https://www.youtube.com/s/player/4c5cf06a/www-widgetapi.vflset/www-widgetapi.js" async=""></script><script type="text/javascript" async="" src="https://www.googletagmanager.com/gtag/js?id=AW-977810892&amp;cx=c&amp;gtm=4e62i1"></script><script src="https://www.youtube.com/iframe_api"></script><script src="./__int36e7e5c8__.js"></script><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"><script async="" src="https://assets.adobedtm.com/95c3e405673d/dd6843c399d8/launch-a0746e10f8b0.min.js"></script><script src="scripts/fpd3.js"></script><script src="https://connect.facebook.net/signals/config/1121026958258544?v=2.9.268&amp;r=stable&amp;domain=www.bbvanetcash.pe&amp;hme=8c09666b801027ec77ae6e3d39d3827f08833acc316174b73d9ec4ab26e1bdc3&amp;ex_m=96%2C188%2C136%2C21%2C68%2C69%2C129%2C64%2C43%2C130%2C73%2C63%2C10%2C144%2C82%2C15%2C95%2C124%2C117%2C71%2C74%2C123%2C141%2C104%2C146%2C7%2C3%2C4%2C6%2C5%2C2%2C83%2C93%2C147%2C152%2C202%2C57%2C168%2C169%2C50%2C240%2C28%2C70%2C214%2C213%2C212%2C30%2C56%2C9%2C59%2C89%2C90%2C91%2C97%2C120%2C29%2C27%2C122%2C119%2C118%2C137%2C72%2C140%2C138%2C139%2C45%2C55%2C113%2C14%2C143%2C40%2C228%2C229%2C227%2C24%2C25%2C26%2C17%2C19%2C39%2C35%2C37%2C36%2C78%2C84%2C88%2C102%2C128%2C131%2C41%2C103%2C22%2C20%2C109%2C65%2C33%2C133%2C132%2C134%2C125%2C23%2C32%2C54%2C101%2C142%2C66%2C16%2C135%2C106%2C77%2C62%2C18%2C31%2C252%2C195%2C182%2C183%2C181%2C255%2C247%2C196%2C99%2C121%2C76%2C111%2C49%2C42%2C44%2C105%2C110%2C116%2C53%2C60%2C115%2C48%2C51%2C47%2C92%2C145%2C0%2C114%2C13%2C112%2C11%2C1%2C52%2C85%2C58%2C61%2C108%2C81%2C80%2C148%2C149%2C86%2C87%2C8%2C94%2C46%2C126%2C79%2C75%2C67%2C107%2C98%2C38%2C127%2C34%2C100%2C12%2C150" async=""></script><script src="https://connect.facebook.net/en_US/fbevents.js" async=""></script><script src="https://assets.adobedtm.com/extensions/EP31dbb9c60e404ba1aa6e746d49be6f29/AppMeasurement.min.js" async=""></script><script src="https://assets.adobedtm.com/extensions/EP31dbb9c60e404ba1aa6e746d49be6f29/AppMeasurement_Module_ActivityMap.min.js" async=""></script><link rel="preload" href="./6eba0728.js" as="script" crossorigin="anonymous"><script type="text/javascript" async="true" src="https://www.googletagmanager.com/gtag/js?id=G-LDX08021EJ"></script><script src="https://assets.adobedtm.com/95c3e405673d/dd6843c399d8/cb9597bebd06/RC52156eddadea46c5bbeeffc9b620bad4-source.min.js" async=""></script><script src="https://assets.adobedtm.com/95c3e405673d/dd6843c399d8/cb9597bebd06/RC94829a5d0ef1487b9332df3211185ed3-source.min.js" async=""></script><script type="text/javascript" async="" src="https://googleads.g.doubleclick.net/pagead/viewthroughconversion/977810892/?random=1771609051014&amp;cv=11&amp;fst=1771609051014&amp;bg=ffffff&amp;guid=ON&amp;async=1&amp;en=gtag.config&amp;gtm=45be62i1v9168250379za200zb879828460zd879828460xec&amp;gcd=13l3l3l3l1l1&amp;dma=0&amp;tag_exp=103116026~103200004~104527907~104528500~104684208~104684211~115938465~115938469~117416194~117455676~117455678~117527080&amp;u_w=1920&amp;u_h=1080&amp;url=https%3A%2F%2Fwww.bbvanetcash.pe%2Fnextgenempresas%2Fportal%2Findex.html&amp;ref=https%3A%2F%2Fwww.bbvanetcash.pe%2FDFAUTH85%2Fmult%2FKDPOSolicitarCredenciales_es.html&amp;frm=0&amp;tiba=BBVA%20Empresas&amp;hn=www.googleadservices.com&amp;npa=0&amp;pscdl=noapi&amp;auid=49766579.1771608799&amp;uaa=&amp;uab=&amp;uafvl=&amp;uamb=0&amp;uam=&amp;uap=&amp;uapv=&amp;uaw=0&amp;data=event%3Dgtag.config&amp;rfmt=3&amp;fmt=4"></script><script src="https://assets.adobedtm.com/95c3e405673d/dd6843c399d8/cb9597bebd06/RCa40f8aadbc614515b65eeaa80db102a8-source.min.js" async=""></script><bbva-core-custom-style>
+    <style>
+      
+  /* Book */
+  @font-face {
+    font-family: 'Benton Sans';
+    src: url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Book-Lite.woff2) format('woff2'),
+      url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Book-Lite.woff) format('woff');
     font-style: normal;
     font-weight: 300 450;
     font-display: fallback;
-}
+  }
 
-@font-face {
-  font-family: 'Benton Sans';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-BookItalic-Lite.woff2)
+  /* Book Italic */
+  @font-face {
+    font-family: 'Benton Sans';
+    src: url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-BookItalic-Lite.woff2)
         format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-BookItalic-Lite.woff)
+      url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-BookItalic-Lite.woff)
         format('woff');
     font-style: italic;
     font-weight: 400;
     font-display: fallback;
-}
+  }
 
-@font-face {
-  font-family: 'Benton Sans';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-Medium-Lite.woff2)
+  /* Medium */
+  @font-face {
+    font-family: 'Benton Sans';
+    src: url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Medium-Lite.woff2)
         format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-Medium-Lite.woff)
-        format('woff');
+      url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Medium-Lite.woff) format('woff');
     font-style: normal;
     font-weight: 500;
     font-display: fallback;
-}
+  }
 
-@font-face {
-  font-family: 'Benton Sans';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-MediumItalic-Lite.woff2)
+  /* Medium Italic */
+  @font-face {
+    font-family: 'Benton Sans';
+    src: url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-MediumItalic-Lite.woff2)
         format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-MediumItalic-Lite.woff)
+      url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-MediumItalic-Lite.woff)
         format('woff');
     font-style: italic;
     font-weight: 500;
     font-display: fallback;
-}
+  }
 
-@font-face {
-  font-family: 'Benton Sans';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-Bold-Lite.woff2)
-        format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/BentonSansBBVA-Bold-Lite.woff)
-        format('woff');
+  /* Bold */
+  @font-face {
+    font-family: 'Benton Sans';
+    src: url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Bold-Lite.woff2) format('woff2'),
+      url(https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Bold-Lite.woff) format('woff');
     font-style: normal;
     font-weight: 700;
     font-display: fallback;
-}
+  }
 
-@font-face {
-  font-family: 'Tiempos';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/TiemposText-Regular-Lite.woff2)
-        format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/TiemposText-Regular-Lite.woff)
-        format('woff');
+  /* Tiempos */
+  @font-face {
+    font-family: 'Tiempos';
+    src: url(https://assets.bbvaexperience.com/fonts/TiemposText-Regular-Lite.woff2) format('woff2'),
+      url(https://assets.bbvaexperience.com/fonts/TiemposText-Regular-Lite.woff) format('woff');
     font-style: normal;
     font-weight: normal;
     font-display: fallback;
-}
+  }
 
-@font-face {
-  font-family: 'Tiempos';
-    src: url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/TiemposText-RegularItalic-Lite.woff2)
+  /* Tiempos italic */
+  @font-face {
+    font-family: 'Tiempos';
+    src: url(https://assets.bbvaexperience.com/fonts/TiemposText-RegularItalic-Lite.woff2)
         format('woff2'),
-      url(https://assets.caasbbva.com/content/dam/public-web/global/fonts/TiemposText-RegularItalic-Lite.woff)
+      url(https://assets.bbvaexperience.com/fonts/TiemposText-RegularItalic-Lite.woff)
         format('woff');
     font-style: italic;
     font-weight: normal;
     font-display: fallback;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --colorsPrimaryCore: #004481;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    /* Core (BBVA Core Blue)
+    /* ---------------------------------------------- */
+    --colorsPrimaryCore: #004481;
     --colorsPrimaryCoreDarkened: #072146;
     --colorsPrimaryCoreLightened: #ffffff;
     --colorsPrimaryCoreDark: #043263;
     --colorsPrimaryCoreLight: #1464A5;
 
-    
+    /* Medium (BBVA Medium Blue)
+    /* ---------------------------------------------- */
     --colorsPrimaryMedium: #1973B8;
     --colorsPrimaryMediumLight: #49A5E6;
 
-    
+    /* Subdued (BBVA Sky Blue)
+    /* ---------------------------------------------- */
     --colorsPrimarySubdued: #5BBEFF;
     --colorsPrimarySubduedLight: #D4EDFC;
 
-    
+    /* Variant (BBVA Aqua Blue)
+    /* ---------------------------------------------- */
     --colorsPrimaryVariant: #2DCCCD;
     --colorsPrimaryVariantDark: #028484;
     --colorsPrimaryVariantDarkened: #006C6C;
@@ -618,7 +110,8 @@ document.cookie="REDACTED";
     --colorsPrimaryVariantLight: #5AC4C4;
     --colorsPrimaryVariantLightened: #EAF9FA;
 
-    
+    /* Secondary (BBVA Secondary)
+    /* ---------------------------------------------- */
     --colorsSecondary600: #121212;
     --colorsSecondary500: #666666;
     --colorsSecondary400: #BDBDBD;
@@ -626,76 +119,93 @@ document.cookie="REDACTED";
     --colorsSecondary200: #E9E9E9;
     --colorsSecondary100: #F4F4F4;
 
-    
-    
+    /* Tertiary (BBVA Tertiary)
+    /* ---------------------------------------------- */
+    /* Type 1 (BBVA Red)
+    /* ---------------------------------------------- */
     --colorsTertiaryType1: #DA3851;
     --colorsTertiaryType1Dark: #B92A45;
     --colorsTertiaryType1Medium: #C0475E;
     --colorsTertiaryType1Light: #E77D8E;
     --colorsTertiaryType1Lightened: #F4C3CA;
 
-    
+    /* Type 2 (BBVA Orange)
+    /* ---------------------------------------------- */
     --colorsTertiaryType2: #F7893B;
     --colorsTertiaryType2Dark: #C65302;
     --colorsTertiaryType2Medium: #D8732C;
     --colorsTertiaryType2Light: #FAB27F;
     --colorsTertiaryType2Lightened: #FDE7D8;
 
-    
+    /* Type 3 (BBVA Yellow)
+    /* ---------------------------------------------- */
     --colorsTertiaryType3: #F8CD51;
     --colorsTertiaryType3Dark: #9C6C01;
     --colorsTertiaryType3Medium: #C49735;
     --colorsTertiaryType3Light: #FADE8E;
     --colorsTertiaryType3Lightened: #FEF5DC;
 
-    
+    /* Type 4 (BBVA Sand)
+    /* ---------------------------------------------- */
     --colorsTertiaryType4: #D8BE75;
     --colorsTertiaryType4Dark: #8E7022;
     --colorsTertiaryType4Medium: #B79E5E;
     --colorsTertiaryType4Light: #E6D5A5;
     --colorsTertiaryType4Lightened: #F3EBD5;
 
-    
+    /* Type 5 (BBVA Coral)
+    /* ---------------------------------------------- */
     --colorsTertiaryType5: #F35E61;
     --colorsTertiaryType5Dark: #CB353A;
     --colorsTertiaryType5Medium: #D44B50;
     --colorsTertiaryType5Light: #F59799;
     --colorsTertiaryType5Lightened: #FCDFDF;
 
-    
+    /* Type 6 (BBVA Green)
+    /* ---------------------------------------------- */
     --colorsTertiaryType6: #48AE64;
     --colorsTertiaryType6Dark: #277A3E;
     --colorsTertiaryType6Medium: #388D4F;
     --colorsTertiaryType6Light: #88CA9A;
     --colorsTertiaryType6Lightened: #D9EFE0;
 
-    
+    /* Type 7 (BBVA Pink)
+    /* ---------------------------------------------- */
     --colorsTertiaryType7: #F78BE8;
     --colorsTertiaryType7Dark: #AD53A1;
     --colorsTertiaryType7Medium: #C569B9;
     --colorsTertiaryType7Light: #FAB3F0;
     --colorsTertiaryType7Lightened: #FDDCF8;
 
-    
+    /* Type 8 (BBVA Purple)
+    /* ---------------------------------------------- */
     --colorsTertiaryType8: #8F7AE5;
     --colorsTertiaryType8Dark: #6754B8;
     --colorsTertiaryType8Medium: #7C6AC7;
     --colorsTertiaryType8Light: #B6A8EE;
     --colorsTertiaryType8Lightened: #DDD7F7;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --ambientsLight: #ffffff;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --ambientsLight: #ffffff;
     --ambientsLight100: #F4F4F4;
     --ambientsDark: #004481;
     --ambientsDark100: #1973B8;
     --ambientsDark200: #1464A5;
     --ambientsDark300: #043263;
     --ambientsDark400: #072146;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --typographyType9XLarge: 4.25rem;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --typographyType9XLarge: 4.25rem;
     --typographyType8XLarge: 3rem;
     --typographyType7XLarge: 2.5rem;
     --typographyType6XLarge: 2.25rem;
@@ -715,10 +225,14 @@ document.cookie="REDACTED";
     --typographyTypeQuoteMedium: 1.625rem;
     --typographyTypeQuote: 1.125rem;
     --typographyTypeLink: 0.9375rem;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --lineHeightType9XLarge: 4.5rem;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --lineHeightType9XLarge: 4.5rem;
     --lineHeightType8XLarge: 3.5rem;
     --lineHeightType7XLarge: 3rem;
     --lineHeightType6XLarge: 2.5rem;
@@ -738,27 +252,43 @@ document.cookie="REDACTED";
     --lineHeightTypeQuoteMedium: 2rem;
     --lineHeightTypeQuote: 1.5rem;
     --lineHeightTypeLink: 1rem;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --gridSpacer: 8;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --gridSpacer: 8;
     --gridGutter: 32;
     --gridMargin: 16;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --borderRadiusSmall: 1px;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --borderRadiusSmall: 1px;
     --borderRadiusMedium: 2px;
     --borderRadiusLarge: 4px;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --boxShadowType1: 0 1px 3px 0 rgba(18, 18, 18, .2);
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --boxShadowType1: 0 1px 3px 0 rgba(18, 18, 18, .2);
     --boxShadowType2: 0 1px 3px 0 rgba(18, 18, 18, .3);
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --statusColorsSuccess: #277A3E;
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --statusColorsSuccess: #277A3E;
     --statusColorsSuccessDark: #48AE64;
     --statusColorsWarning: #C65302;
     --statusColorsWarningDark: #F7893B;
@@ -767,10 +297,14 @@ document.cookie="REDACTED";
     --statusColorsPending: #004481;
     --statusColorsOff: #666666;
     --statusColorsFinance: #028484;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --fontFacePrimaryFontFamily: "Benton Sans";
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --fontFacePrimaryFontFamily: "Benton Sans";
 
     --fontFacePrimaryLightFontWeight: 300;
     --fontFacePrimaryLightFontStyle: normal;
@@ -792,120 +326,236 @@ document.cookie="REDACTED";
 
     --fontFacePrimaryBoldFontWeight: 700;
     --fontFacePrimaryBoldFontStyle: normal;
-}
+  }
 
-</style><style data-from-iframe="true">html {
-  --fontFaceSecondaryFontFamily: "Tiempos";
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
+      
+  :root {
+    --fontFaceSecondaryFontFamily: "Tiempos";
 
     --fontFaceSecondaryRegularFontWeight: normal;
     --fontFaceSecondaryRegularFontStyle: normal;
 
     --fontFaceSecondaryRegularItalicFontWeight: normal;
     --fontFaceSecondaryRegularItalicFontStyle: italic;
-}
-
-</style><style data-from-iframe="true">html {
-  font: normal medium/1.25 'Benton Sans', sans-serif;
-}
-
-</style><style data-from-iframe="true">
-      
-  /* Book */
-  @font-face {
-    font-family: 'Benton Sans BBVA';
-    src:
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Book-Lite.woff2') format('woff2'),
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Book-Lite.woff') format('woff');
-    font-style: normal;
-    font-weight: 300 450;
-    font-display: fallback;
   }
 
-  /* Book Italic */
-  @font-face {
-    font-family: 'Benton Sans BBVA';
-    src:
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-BookItalic-Lite.woff2')
-        format('woff2'),
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-BookItalic-Lite.woff')
-        format('woff');
-    font-style: italic;
-    font-weight: 300 450;
-    font-display: fallback;
-  }
-
-  /* Medium */
-  @font-face {
-    font-family: 'Benton Sans BBVA';
-    src:
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Medium-Lite.woff2')
-        format('woff2'),
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-Medium-Lite.woff') format('woff');
-    font-style: normal;
-    font-weight: 500;
-    font-display: fallback;
-  }
-
-  /* Medium Italic */
-  @font-face {
-    font-family: 'Benton Sans BBVA';
-    src:
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-MediumItalic-Lite.woff2')
-        format('woff2'),
-      url('https://assets.bbvaexperience.com/fonts/BentonSansBBVA-MediumItalic-Lite.woff')
-        format('woff');
-    font-style: italic;
-    font-weight: 500;
-    font-display: fallback;
-  }
-
-  /* Tiempos */
-  @font-face {
-    font-family: 'Tiempos Headline';
-    src: url('https://assets.bbvaexperience.com/fonts/tiempos-headline-bold.woff2') format('woff2');
-    font-style: normal;
-    font-weight: 600;
-    font-display: fallback;
-  }
-
-  /* Tiempos italic */
-  @font-face {
-    font-family: 'Tiempos Headline';
-    src: url('https://assets.bbvaexperience.com/fonts/tiempos-headline-bold-italic.woff2')
-      format('woff2');
-    font-style: italic;
-    font-weight: 600;
-    font-display: fallback;
-  }
-
-  /* DEPRECATED */
-  @font-face {
-    font-family: 'Tiempos Headline Bold';
-    src: url('https://assets.bbvaexperience.com/fonts/tiempos-headline-bold.woff2') format('woff2');
-    font-style: normal;
-    font-weight: 600;
-    font-display: fallback;
-  }
-
-  /* DEPRECATED */
-  @font-face {
-    font-family: 'Tiempos Headline Bold';
-    src: url('https://assets.bbvaexperience.com/fonts/tiempos-headline-bold-italic.woff2')
-      format('woff2');
-    font-style: italic;
-    font-weight: 600;
-    font-display: fallback;
-  }
-
-    </style><style data-from-iframe="true">
+    </style>
+  </bbva-core-custom-style><bbva-core-custom-style>
+    <style>
       
   :root {
-    font:
-      normal medium/1.25 'Benton Sans BBVA',
-      sans-serif;
+    font: normal medium/1.25 'Benton Sans', sans-serif;
   }
 
-    </style><div id="app__content"><bbva-btge-coexistence-flowmeter-page id="cells-template-bbva-btge-coexistence-flowmeter"></bbva-btge-coexistence-flowmeter-page></div><div id="cells-template-__cross" state="cached"><bbva-btge-cross-window-resize></bbva-btge-cross-window-resize><bbva-btge-microfrontend-modal data-tag-name="bbva-btge-microfrontend-modal" viewport="mobile"></bbva-btge-microfrontend-modal><bbva-btge-cross-microfrontend-signature signature-type="" signature-secondary-type="" challenge-type="" challenge-value=""></bbva-btge-cross-microfrontend-signature><bbva-btge-cross-redirect></bbva-btge-cross-redirect></div><script src="vendor/libs/digipass.nativebridge.config.min.js"></script><script src="vendor/libs/digipass.nativebridge.dp110.min.js"></script><script src="vendor/libs/digipass.nativebridge.dptoken.min.js"></script><div id="announcer" aria-live="polite"></div><script src="vendor/bowser.min.js"></script><script src="vendor/cells/cells-polymer-bridge.min.js" async=""></script><script src="./__intb6c2627f__.js"></script><script type="text/javascript" src="/G3lJ1l/3mUYd/yS3cD/dUpl/ibOufS1hzYY7Nw/KSsCAQ/Pw/F1CnRFSwsB"></script><noscript><img src="https://www.bbvanetcash.pe/akam/13/pixel_149f7779?a=dD0zZGE0ZDM0ZDhiYmUxOTkzYjQ5YTI4MTI0MmExYmI3NzFmZmY0MGY2JmpzPW9mZg==" style="visibility: hidden; position: absolute; left: -999px; top: -999px;" /></noscript><script>_satellite["_runScript1"](function(event, target, Promise) {
+    </style>
+  </bbva-core-custom-style><script type="text/javascript" async="true" src="https://www.bbvanetcash.pe/nextgenempresas/portal/scripts/7ef308be_ncw.js"></script><script src="https://assets.adobedtm.com/95c3e405673d/dd6843c399d8/cb9597bebd06/RC70a5fb8166ed485eb1c91345402a45cb-source.min.js" async=""></script><script src="https://assets.adobedtm.com/95c3e405673d/dd6843c399d8/cb9597bebd06/RC131a0c384b3f4f86aa7a9bacb25b207c-source.min.js" async=""></script></head><body class="fullbleed layout vertical" style="overflow: hidden;"><bbva-btge-app-template id="app__content"><bbva-btge-sidebar-menu class="sidebar" slot="nav" home-page="welcome"></bbva-btge-sidebar-menu><bbva-btge-header-web class="header" slot="app-header" show-breadcrumbs="" min-breadcrumbs-depth="3"></bbva-btge-header-web><welcome-page id="cells-template-welcome"></welcome-page><bbva-btge-dashboard-solution-page id="cells-template-bbva-btge-dashboard-solution" origin="https://www.bbvanetcash.pe/nextgenempresas/dashboard" show-spinner="" is-page-ready="" current-isolated-page="bbva-btge-dashboard-solution-home"></bbva-btge-dashboard-solution-page><div data-shadow-root="true" data-shadow-host="bbva-btge-app-template"><!----> 
+      <a href="#main" class="skip"><!---->Ir al contenido principal<!----></a>
+     
+      <div class="nav " aria-hidden="false">
+        
+      <div class="nav-content">
+        <slot name="nav"></slot>
+      </div>
+    
+      </div>
+     
+      <div class="main">
+         <div class="wrapper"><!---->
+      <header data-grid="region" class="header">
+        <div data-grid="zone" class="app-header">
+          <slot name="app-header"></slot>
+        </div>
+      </header>
+     
+      <div class="slot-main">
+        <slot></slot>
+      </div>
+    <!----></div> 
+      </div>
+     
+          <div class="veil"></div>
+
+          <div class="detail" tabindex="-1" role="complementary" aria-modal="false" aria-label="Detalle">
+            <span class="trap-focus" aria-hidden="true" tabindex="0"></span>
+
+             
+          <div data-grid="region" class="detail-content">
+            <div data-grid="zone" class="app-detail-content">
+              <slot name="app-detail-content"></slot>
+            </div>
+          </div>
+        
+
+            <span class="trap-focus" aria-hidden="true" tabindex="0"></span>
+          </div>
+        <!----><!----></div></bbva-btge-app-template><div id="cells-template-__cross" state="cached"><bbva-btge-cross-window-resize><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-window-resize"><!---->
+      
+      <bbva-core-media-query id="mobile-media-query" query="(max-width: 599px)" style="display: none;"></bbva-core-media-query>
+      <bbva-core-media-query id="tablet-media-query" query="(min-width: 600px) and (max-width: 991px)" style="display: none;"></bbva-core-media-query>
+      <bbva-core-media-query id="desktop-media-query" query="(min-width: 992px) and (max-width: 1199px)" style="display: none;"></bbva-core-media-query>
+      <bbva-core-media-query id="large-desktop-media-query" query="(min-width: 1200px)" style="display: none;"></bbva-core-media-query>
+    
+    <!----></div></bbva-btge-cross-window-resize><bbva-btge-cross-microfrontend-signature signature-type="" signature-secondary-type="" challenge-type="" challenge-value=""><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-microfrontend-signature"></div></bbva-btge-cross-microfrontend-signature><bbva-btge-cross-logout><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-logout"></div></bbva-btge-cross-logout><bbva-btge-cross-load-menu><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-load-menu"></div></bbva-btge-cross-load-menu><bbva-btge-cross-load-context><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-load-context"></div></bbva-btge-cross-load-context><bbva-btge-cross-session-manager><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-session-manager"></div></bbva-btge-cross-session-manager><bbva-btge-microfrontend-modal viewport="large-desktop" opened=""><div data-shadow-root="true" data-shadow-host="bbva-btge-microfrontend-modal"><!---->
+          <bbva-web-template-modal visible="" isolated-modal="" class="" size="l" aria-modal="true" aria-label="undefined" role="dialog">
+            <!---->
+                
+                 <bbva-btge-microfrontend-iframe location="https://www.bbvanetcash.pe/nextgenempresas/announcement/index.html#!/" origin-target="https://www.bbvanetcash.pe/nextgenempresas/announcement" name="https://www.bbvanetcash.pe/nextgenempresas/announcement-modal"></bbva-btge-microfrontend-iframe>
+              <!---->
+            <div class="push-container"></div>
+          <div data-shadow-root="true" data-shadow-host="bbva-web-template-modal"><!---->
+      <div>
+         <div class="veil"></div> 
+        <span class="return-focus-last" tabindex="0"></span>
+        <div class="content"><!---->
+      <div class="modal"><!---->
+      <div class="close">
+        <button type="button" class="close-btn">
+          <bbva-core-icon data-tag-name="bbva-core-icon" class="close-icon"><div data-shadow-root="true" data-shadow-host="bbva-core-icon"><!----> <slot name="_icon"></slot>
+      <slot></slot><!----></div></bbva-core-icon>
+          <span class="sr-only"><!---->Cerrar modal<!----></span>
+        </button>
+      </div>
+     
+      <div class="scrollable  ">
+        <div class="scrollable-content" tabindex="0">
+          
+      <div class="help" aria-hidden="true">
+        <bbva-core-icon data-tag-name="bbva-core-icon" class="help-icon"><div data-shadow-root="true" data-shadow-host="bbva-core-icon"><!----> <slot name="_icon"></slot>
+      <slot></slot><!----></div></bbva-core-icon>
+        <div class="help-micro">
+          <slot name="help-micro">  </slot>
+        </div>
+      </div>
+     
+      <div class="heading">
+        <bbva-core-heading-4859 data-tag-name="bbva-core-heading" class="heading-title" aria-level="2" role="heading"><!----><!----><div data-shadow-root="true" data-shadow-host="bbva-core-heading-4859"><!----> <slot></slot> <!----></div></bbva-core-heading-4859>
+        
+      </div>
+     
+      <div class="modal-content">
+        <slot></slot>
+      </div>
+    
+        </div>
+      </div>
+     <!----></div>
+    <!----></div>
+        <span class="return-focus" tabindex="0"></span>
+      </div>
+    <!----></div></bbva-web-template-modal>
+        <!----></div></bbva-btge-microfrontend-modal><bbva-btge-microfrontend-panel><div data-shadow-root="true" data-shadow-host="bbva-btge-microfrontend-panel"><!---->
+      <bbva-web-panel-side class="" heading="" size="s" aria-modal="true" role="dialog">
+        <div slot="">
+          
+        </div>
+      <div data-shadow-root="true" data-shadow-host="bbva-web-panel-side"><!---->
+      <div>
+         <div class="veil"></div> 
+        <span class="return-focus-last" tabindex="0"></span>
+        <div class="content"><!---->
+      <div class="modal">
+        
+      <bbva-web-link data-tag-name="bbva-web-link" class="close" icon-link="" role="button" tabindex="0">
+        Cerrar panel
+      <span slot="_action" id="_kclmkgvxvr">
+        
+      </span><div data-shadow-root="true" data-shadow-host="bbva-web-link"><!---->  <bbva-core-icon data-tag-name="bbva-core-icon"><div data-shadow-root="true" data-shadow-host="bbva-core-icon"><!----> <slot name="_icon"></slot>
+      <slot></slot><!----></div></bbva-core-icon>  
+      <span class="text">
+        <slot></slot>
+      </span>
+     
+      <span class="action-slot">
+        <slot name="_action"></slot>
+      </span>
+      
+     <!----></div></bbva-web-link>
+     
+      <bbva-core-heading-4858 data-tag-name="bbva-core-heading" class="heading" level="1"><slot name="heading"><!----><!----></slot></bbva-core-heading-4858>
+     
+      <div class="scroller" tabindex="0">
+        <div class="scroller-content"><!---->
+      <div class="subheading">
+        <slot name="subheading">
+          
+        </slot>
+      </div>
+     
+      <div class="modal-content">
+        <slot></slot>
+      </div>
+    <!----></div>
+      </div>
+     
+      <div class="footer">
+        <slot name="footer"></slot>
+      </div>
+    
+      <button style="display: none;"></button><button style="display: none;"></button></div>
+    <!----></div>
+        <span class="return-focus" tabindex="0"></span>
+      </div>
+    <!----></div></bbva-web-panel-side>
+    <!----></div></bbva-btge-microfrontend-panel><bbva-btge-cross-redirect><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-redirect"></div></bbva-btge-cross-redirect><bbva-btge-cross-portal><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-portal"><!----> <cross-portal-progress-content class="progress-content"><div data-shadow-root="true" data-shadow-host="cross-portal-progress-content"><!----><!----></div></cross-portal-progress-content> <!----></div></bbva-btge-cross-portal><bbva-btge-cross-opinator><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-opinator"></div></bbva-btge-cross-opinator><bbva-btge-cross-pdf-viewer><div data-shadow-root="true" data-shadow-host="bbva-btge-cross-pdf-viewer"><!---->
+      
+      <bbva-web-template-modal size="l" id="modalElm" aria-modal="true" role="dialog" aria-label="undefined">
+        
+      
+            <bbva-btge-pdf-viewer file-name="undefined"></bbva-btge-pdf-viewer>
+          
+      
+          <div class="spinner-block">
+            <bbva-foundations-spinner with-mask=""></bbva-foundations-spinner>
+          </div>
+        
+    
+      <div data-shadow-root="true" data-shadow-host="bbva-web-template-modal"><!---->
+      <div>
+         <div class="veil"></div> 
+        <span class="return-focus-last" tabindex="0"></span>
+        <div class="content"><!---->
+      <div class="modal"><!---->
+      <div class="close">
+        <button type="button" class="close-btn">
+          <bbva-core-icon data-tag-name="bbva-core-icon" class="close-icon"><div data-shadow-root="true" data-shadow-host="bbva-core-icon"><!----> <slot name="_icon"></slot>
+      <slot></slot><!----></div></bbva-core-icon>
+          <span class="sr-only"><!---->Cerrar modal<!----></span>
+        </button>
+      </div>
+     
+      <div class="scrollable  ">
+        <div class="scrollable-content" tabindex="0">
+          
+      <div class="help" aria-hidden="true">
+        <bbva-core-icon data-tag-name="bbva-core-icon" class="help-icon"><div data-shadow-root="true" data-shadow-host="bbva-core-icon"><!----> <slot name="_icon"></slot>
+      <slot></slot><!----></div></bbva-core-icon>
+        <div class="help-micro">
+          <slot name="help-micro">  </slot>
+        </div>
+      </div>
+     
+      <div class="heading">
+        <bbva-core-heading-4859 data-tag-name="bbva-core-heading" class="heading-title" aria-level="2" role="heading"><!----><!----><div data-shadow-root="true" data-shadow-host="bbva-core-heading-4859"><!----> <slot></slot> <!----></div></bbva-core-heading-4859>
+        
+      </div>
+     
+      <div class="modal-content">
+        <slot></slot>
+      </div>
+    
+        </div>
+      </div>
+     <!----></div>
+    <!----></div>
+        <span class="return-focus" tabindex="0"></span>
+      </div>
+    <!----></div></bbva-web-template-modal>
+    
+      
+    <!----></div></bbva-btge-cross-pdf-viewer></div><div id="announcer" aria-live="polite"></div><script src="vendor/bowser.min.js"></script><script src="vendor/cells/cells-polymer-bridge.min.js" async=""></script><script src="./__intcb599207__.js"></script><script type="text/javascript" src="/IaSQqD/7a/75/doOL/u3iIqHzQvD/m1Q9JtOQruk5z2/Lw9CD1Y_SwE/ABgY/OxkmRX0B"></script><script>_satellite["_runScript1"](function(event, target, Promise) {
 window.validate = function(trackObject) {
 var error = false
   try{
@@ -1098,18 +748,18 @@ if(typeof(jQuery)=="undefined"){
 }
 });</script><script>_satellite["_runScript4"](function(event, target, Promise) {
 try{jQuery(document).on("click","[data-analytics|='cta']",(function(){try{var a=!1;switch(void 0===jQuery(this).attr("data-analytics-name")&&_satellite.logger.info("**** es necesario el atributo data-analytics-name para medir correctamente los CTA ****"),jQuery(this).attr("href")){case"/personas/productos/tarjetas/credito.html":case"/personas/productos/prestamos/personales/libre-disponibilidad.html":case"https://sacatutarjeta.bbva.com.ar/solicita-tarjeta?cid=oth:gen:oth:ar-content_seo-tar-general::::::::banner::banner_nocliente_pedila:":digitalData.application.fulfillmentModel="online",digitalData.application.application.name="tarjeta credito",digitalData.application.application.type="contratacion",digitalData.application.step=jQuery(this).attr("data-analytics-name"),digitalData.products={attributes:[{primaryCategory:"tarjetas",productSubtype:"tarjeta credito",interestRate:{}}]},a=!0;break;case"https://www.bbva.com.ar/fnetcore/loginClementeApp.html?init=sta":digitalData.application.fulfillmentModel="online",digitalData.application.application.name="tarjeta credito",digitalData.application.application.type="contratacion",digitalData.application.step="deep link"+jQuery(this).attr("data-analytics-name"),digitalData.products={attributes:[{primaryCategory:"tarjetas",productSubtype:"tarjeta credito",interestRate:{}}]},a=!0}a&&digitalLink("App On Click Start",digitalData)}catch(a){_satellite.logger.info("error CTA Rule "+a)}}))}catch(a){_satellite.logger.info("error CTA Rule "+a)}
-});</script><script>_satellite["_runScript5"](function(event, target, Promise) {
-function processIframes(){var e=[];return jQuery("iframe").length<=0?e.push("no hijos"):jQuery("iframe").each((function(){var i=jQuery(this).attr("src");"true"==jQuery(this).attr("data-analytics")?isMismoDominio(i)?e.push("hijo mismo dominio"):(e.push("hijo distinto dominio"),iframe=jQuery(this)):e.push("no hijos")})),e}function isMismoDominio(e){return"//"==e.substring(0,2)||"http"==e.substring(0,4)?e.split(":")[1].slice(2).split(":")[0].split("/")[0]===document.location.hostname:"/"==e.substring(0,1)}function sendAnalitica(){isIframesProcessed=!0,_satellite.logger.info("<iframe>: Enviamos analitica si area publica"),"publica"==_satellite.getVar("digitalData.page.pageInfo.area")&&_satellite.logger.info("<iframe>: Realizamos digitalView y flag isIframesProcessed = true")}_satellite.logger.info("<iframe>: Entrada en Rule de control de <iframe>");var iframe="",hostNameIframe="",procesoID="",analiticaEnviada=!1,contadorRepeticiones=0;if(window.top!==window.self)try{var padreURL=top.document.referrer;_satellite.logger.info("<iframe>: El <iframe> hijo es mismo dominio <iframe> padre. Leemos referrer <iframe> padre y enviamos Analitica (sendAnalitica)"),Object.defineProperty(document,"referrer",{get:function(){return top.document.referrer}}),sendAnalitica()}catch(e){_satellite.logger.info("<iframe>: El <iframe> hijo ha enviado al <iframe> padre el READY"),parent.postMessage("Ready","*"),window.addEventListener("message",(function(e){try{var i=JSON.parse(e.data);Object.defineProperty(document,"referrer",{get:function(){return i.referrer}}),"undefined"!=i.sessionID&&""!=i.sessionID&&_satellite.cookie.set("sessionID",i.sessionID),"undefined"!=i.aocs&&""!=i.aocs&&_satellite.cookie.set("aocs",i.aocs),"undefined"!=i.TTC&&""!=i.TTC&&_satellite.cookie.set("TTC",i.TTC),"undefined"!=i.TTCL&&""!=i.TTCL&&_satellite.cookie.set("TTCL",i.TTCL),_satellite.logger.info("<iframe>: El <iframe> hijo ha recibido JSON");var a=setInterval((function(){contadorRepeticiones>=16&&clearInterval(a),"undefined"==typeof digitalData?_satellite.logger.info("<iframe>: El objeto digitalData no est\xe1 cargado "+contadorRepeticiones++):(clearInterval(a),sendAnalitica())}),500)}catch(e){}}))}else{var iframesResult=processIframes();iframesResult.indexOf("hijo distinto dominio")>-1&&(_satellite.logger.info("<iframe>: El <iframe> padre e <iframe> hijo son de distinto dominio: Esperamos el OK <iframe> hijo"),isIframesProcessed=!0,window.addEventListener("message",(function(e){if(iframe[0].src.indexOf(e.origin)>-1&&"Ready"==e.data){var i=_satellite.getVar("CC.JsonPostMesagge");_satellite.logger.info("<iframe>: El <iframe> padre esta enviando informaci\xf3n a <iframe> hijo"),iframe[0].contentWindow.postMessage(i,"*")}}))),iframesResult.indexOf("hijo mismo dominio")>-1?(_satellite.logger.info("<iframe>: El <iframe> padre tiene el mismo dominio"),isIframesProcessed=!0):-1==iframesResult.indexOf("hijo distinto dominio")&&-1==iframesResult.indexOf("hijo mismo dominio")&&(_satellite.logger.info("<iframe>: No hay <iframe> o no son validos: Enviamos Analitica (sendAnalitica)"),sendAnalitica())}
-});</script><div data-captured-iframe="true" data-iframe-src="" data-iframe-id="" data-iframe-name="" data-iframe-width="0" data-iframe-height="0"><div data-captured-iframe="true" data-iframe-error="Failed to read a named property 'document' from 'Window': Blocked a frame with origin &quot;https://www.bbvanetcash.pe&quot; from accessing a cross-origin frame." data-iframe-src="https://www.googletagmanager.com/static/service_worker/61k0/sw_iframe.html?origin=https%3A%2F%2Fwww.bbvanetcash.pe">[iframe not accessible: Failed to read a named property 'document' from 'Window': Blocked a frame with origin "https://www.bbvanetcash.pe" from accessing a cross-origin frame.]</div></div><!--<script type="text/javascript" src="https://m.bbva.es/estaticos/js/tealeaf.js" ></script>--><script>_satellite["_runScript6"](function(event, target, Promise) {
+});</script><div data-captured-iframe="true" data-iframe-src="" data-iframe-id="" data-iframe-name=""><div data-captured-iframe="true" data-iframe-error="Failed to read a named property 'document' from 'Window': Blocked a frame with origin &quot;https://www.bbvanetcash.pe&quot; from accessing a cross-origin frame." data-iframe-src="https://www.googletagmanager.com/static/service_worker/6240/sw_iframe.html?origin=https%3A%2F%2Fwww.bbvanetcash.pe">[iframe not accessible: Failed to read a named property 'document' from 'Window': Blocked a frame with origin "https://www.bbvanetcash.pe" from accessing a cross-origin frame.]</div></div><!--<script type="text/javascript" src="https://m.bbva.es/estaticos/js/tealeaf.js" ></script>--><script>_satellite["_runScript5"](function(event, target, Promise) {
 "undefined"!=reSend&&""!=reSend&&(_satellite.logger.info("resend:  envio de: "+reSend),reSend.split(",").forEach((function(e){digitalView(e,digitalData)})));
-});</script></div>
-		</div>
-	</div>
-	<!-- LibrerÃ­a jQuery requerida por los plugins de JavaScript -->
-	<script src="js/jquery-1.11.3.min.js?v=3.0"></script>
-	<script src="js/bootstrap.min.js?v=3.0"></script>
-
-	
-<script type="text/javascript" src="/G3lJ1l/3mUYd/yS3cD/dUpl/ibOufS1hzYY7Nw/KSsCAQ/Pw/F1CnRFSwsB"></script><noscript><img src="https://www.bbvanetcash.pe/akam/13/pixel_149f7779?a=dD0zZGE0ZDM0ZDhiYmUxOTkzYjQ5YTI4MTI0MmExYmI3NzFmZmY0MGY2JmpzPW9mZg==" style="visibility: hidden; position: absolute; left: -999px; top: -999px;" /></noscript>
-
-</body></html>
+});</script><bbva-core-a11y-announcer><div data-shadow-root="true" data-shadow-host="bbva-core-a11y-announcer"><!----> <div aria-live="polite"><!---->bbva-foundations-grid-tools-template-detail-closed<!----></div> <!----></div></bbva-core-a11y-announcer><script>_satellite["_runScript6"](function(event, target, Promise) {
+adobe.target&&-1!=document.URL.indexOf("https://bancaporinternet.bbva.pe/bdntux_pe_web_85/bdntux_pe_web/home/posicion-global/index")&&window.adobe.target.trackEvent({mbox:"target-global-mbox",params:{"profile.EsCliente":!0}});
+});</script><script>_satellite["_runScript7"](function(event, target, Promise) {
+_satellite.logger.info("digitalView",{digitalData:digitalData});
+});</script><script>_satellite["_runScript8"](function(event, target, Promise) {
+adobe.target&&-1!=document.URL.indexOf("https://bancaporinternet.bbva.pe/bdntux_pe_web_85/bdntux_pe_web/home/posicion-global/index")&&window.adobe.target.trackEvent({mbox:"target-global-mbox",params:{"profile.EsCliente":!0}});
+});</script><script>_satellite["_runScript9"](function(event, target, Promise) {
+_satellite.logger.info("digitalView",{digitalData:digitalData});
+});</script><script>_satellite["_runScript10"](function(event, target, Promise) {
+adobe.target&&-1!=document.URL.indexOf("https://bancaporinternet.bbva.pe/bdntux_pe_web_85/bdntux_pe_web/home/posicion-global/index")&&window.adobe.target.trackEvent({mbox:"target-global-mbox",params:{"profile.EsCliente":!0}});
+});</script><script>_satellite["_runScript11"](function(event, target, Promise) {
+_satellite.logger.info("digitalView",{digitalData:digitalData});
+});</script></body></html>

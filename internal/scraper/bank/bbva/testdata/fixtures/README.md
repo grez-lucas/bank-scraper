@@ -1,28 +1,42 @@
 # Fixture Metadata
 bank: bbva
-captured_at: 2026-02-15T11:51:12-03:00
+captured_at: 2026-02-20T15:36:15-03:00
 captured_by: luken
 
 ## Files
 See .html files in this directory.
 Screenshots (.png) provided for visual reference.
 
-## Iframe Handling
+## Shadow DOM + Iframe Flattening
 
-Iframe content is automatically inlined during capture as:
+Fixtures are captured using FlattenShadowDOM which recursively inlines both
+shadow DOM content and iframe documents into a single parseable HTML document.
 
-    <div data-captured-iframe="true" data-iframe-src="..." data-iframe-name="...">
+Shadow root content appears as:
+
+    <custom-element>
+      <!-- light DOM children -->
+      <div data-shadow-root="true" data-shadow-host="custom-element">
+        <style data-from-shadow="true">/* shadow styles */</style>
+        <!-- shadow DOM content -->
+      </div>
+    </custom-element>
+
+Iframe content appears as:
+
+    <div data-captured-iframe="true" data-iframe-src="..." data-iframe-id="...">
       <style data-from-iframe="true">/* iframe styles */</style>
       <!-- iframe body content -->
     </div>
 
-Parse inlined iframe content with goquery:
+Parse flattened content with goquery:
 
+    doc.Find("[data-shadow-root] .your-selector")
     doc.Find("[data-captured-iframe] .your-selector")
 
-Target a specific iframe by attribute:
+Target a specific shadow host:
 
-    doc.Find("[data-iframe-name='content'] .balance-amount")
+    doc.Find("[data-shadow-host='bbva-btge-accounts-solution-page'] .balance")
 
 ## Notes
 - These fixtures should be sanitized before committing
