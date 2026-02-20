@@ -1,1 +1,0 @@
-window.IntlMsg=window.IntlMsg||{},window.IntlMsg.lang="es-ES"

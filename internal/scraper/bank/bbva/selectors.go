@@ -19,10 +19,27 @@ const (
 	// Dashboard Page
 	SelectorDashboard = "table#kyop-boby-table.kyop-boby-table"
 
-	// Balance Page
+	// Balance Page (pre-2026)
 	SelectorAccountsTableRows = "#tabla-contenedor0_1 tbody tr:not(.tb_column_header)"
 
-	// Transactions Page
+	// Accounts Page (2026 redesign)
+	// View toggle
+	SelectorViewToggleTile = `bbva-button-group-item[value="TiledView"]`
+	SelectorViewToggleList = `bbva-button-group-item[value="ListView"]`
+
+	// List view
+	SelectorAccountAccordion   = `bbva-expandable-accordion.entity-accordion`
+	SelectorAccountTable       = `bbva-btge-accounts-solution-table.accountsTable`
+	SelectorAccountRow         = `tr.row`
+	SelectorAccountDescription = `bbva-table-body-text.accountDescription`
+	SelectorAvailableBalance   = `bbva-table-body-amount.availableBalance`
+	SelectorAccountedBalance   = `bbva-table-body-amount.accountedBalance`
+	SelectorExpandButton       = `button.header-accordion`
+
+	// Tile view
+	SelectorAccountCard = `bbva-btge-card-product-select`
+
+	// Transactions Page (pre-2026)
 	SelectorTransactionsTable     = "table#tabladatos"
 	SelectorTransactionsTableRows = "#tabladatos tbody tr:not(.tb_column_header):not(.tb_total)"
 	SelectorNoMovementsError      = "div.msj_ico.msj_err"

@@ -9,63 +9,190 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseBalance_PEN(t *testing.T) {
-	// Load fixture
-	html := testutil.LoadFixture(t, "bbva", "balance_pen")
+func TestParseAccountBalances_ListView(t *testing.T) {
+	html := testutil.LoadFixture(t, "bbva", "accounts_list")
 
-	// Test parsing
-	balance, err := ParseBalancePEN(html)
+	balances, err := ParseAccountBalances(html)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, balance)
-	if balance != nil {
-		assert.Equal(t, bank.CurrencyPEN, balance.Currency)
-		assert.Equal(t, "XXXX-XXXX-XX-XXXXXXXX", balance.AccountID)
-		assert.Equal(t, int64(11_074_32), balance.CurrentBalance)
-		assert.Equal(t, int64(11_074_30), balance.AvailableBalance)
-		assert.WithinDuration(t, time.Now(), balance.FetchedAt, 10*time.Second)
-	}
+	assert.Len(t, balances, 2)
+
+	// PEN account (first table in the list view)
+	pen := balances[0]
+	assert.Equal(t, bank.CurrencyPEN, pen.Currency)
+	assert.Equal(t, "•4607", pen.AccountID)
+	assert.Equal(t, int64(857797), pen.AvailableBalance)
+	assert.Equal(t, int64(857797), pen.CurrentBalance)
+	assert.WithinDuration(t, time.Now(), pen.FetchedAt, 10*time.Second)
+
+	// USD account (second table)
+	usd := balances[1]
+	assert.Equal(t, bank.CurrencyUSD, usd.Currency)
+	assert.Equal(t, "•4615", usd.AccountID)
+	assert.Equal(t, int64(1041679), usd.AvailableBalance)
+	assert.Equal(t, int64(1041679), usd.CurrentBalance)
+	assert.WithinDuration(t, time.Now(), usd.FetchedAt, 10*time.Second)
 }
 
-func TestParseBalance_USD(t *testing.T) {
-	// Load fixture
-	html := testutil.LoadFixture(t, "bbva", "balance_usd")
+func TestParseAccountBalances_TileView(t *testing.T) {
+	html := testutil.LoadFixture(t, "bbva", "accounts_tile")
 
-	balance, err := ParseBalanceUSD(html)
+	balances, err := ParseAccountBalances(html)
+
 	assert.NoError(t, err)
-	assert.NotNil(t, balance)
+	assert.Len(t, balances, 2)
 
-	if balance != nil {
-		assert.Equal(t, bank.CurrencyUSD, balance.Currency)
-		assert.Equal(t, "XXXX-XXXX-XX-XXXXXXXX", balance.AccountID)
-		assert.Equal(t, int64(11_616_79), balance.CurrentBalance)
-		assert.Equal(t, int64(11_616_70), balance.AvailableBalance)
-		assert.WithinDuration(t, time.Now(), balance.FetchedAt, 10*time.Second)
-	}
+	// PEN card
+	pen := balances[0]
+	assert.Equal(t, bank.CurrencyPEN, pen.Currency)
+	assert.Equal(t, "PE001101190100064607", pen.AccountID)
+	assert.Equal(t, int64(857797), pen.AvailableBalance)
+	assert.Equal(t, int64(0), pen.CurrentBalance) // Tile view only has available balance
+	assert.WithinDuration(t, time.Now(), pen.FetchedAt, 10*time.Second)
+
+	// USD card
+	usd := balances[1]
+	assert.Equal(t, bank.CurrencyUSD, usd.Currency)
+	assert.Equal(t, "PE001101190100064615", usd.AccountID)
+	assert.Equal(t, int64(1041679), usd.AvailableBalance)
+	assert.Equal(t, int64(0), usd.CurrentBalance)
+	assert.WithinDuration(t, time.Now(), usd.FetchedAt, 10*time.Second)
 }
 
-func TestParseBalance_InvalidHTML(t *testing.T) {
-	html := `<html><body>Something unexcepted</body></html>`
+func TestParseAccountBalances_InvalidHTML(t *testing.T) {
+	html := `<html><body>Something unexpected</body></html>`
 
-	_, err := ParseBalanceUSD(html)
+	_, err := ParseAccountBalances(html)
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
+	assert.ErrorContains(t, err, "no account elements found")
 }
 
-func TestParseBalance_InvalidAmount(t *testing.T) {
-	html := testutil.LoadFixture(t, "bbva", "balance_invalid")
+func TestCurrencyFromSymbol(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		want     bank.Currency
+		wantErr  bool
+		errMatch string
+	}{
+		{"PEN symbol", CurrencySymbolPEN, bank.CurrencyPEN, false, ""},
+		{"USD symbol", CurrencySymbolUSD, bank.CurrencyUSD, false, ""},
+		{"empty string", "", "", true, "unknown currency symbol"},
+		{"euro symbol", "€", "", true, "unknown currency symbol"},
+		{"full currency name", "PEN", "", true, "unknown currency symbol"},
+	}
 
-	_, err := ParseBalancePEN(html)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := currencyFromSymbol(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.errMatch)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestCurrencyFromCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		want     bank.Currency
+		wantErr  bool
+		errMatch string
+	}{
+		{"PEN code", CurrencyCodePEN, bank.CurrencyPEN, false, ""},
+		{"USD code", CurrencyCodeUSD, bank.CurrencyUSD, false, ""},
+		{"empty string", "", "", true, "unknown currency code"},
+		{"lowercase pen", "pen", "", true, "unknown currency code"},
+		{"symbol instead of code", "S/", "", true, "unknown currency code"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := currencyFromCode(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.errMatch)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestParseAccountBalances_ListViewMissingCurrency(t *testing.T) {
+	html := `<html><body>
+		<bbva-btge-accounts-solution-table class="accountsTable" list-group-entity="BBVA">
+			<table><tbody>
+				<tr class="row">
+					<td><bbva-table-body-text class="accountDescription" text="•1234"></bbva-table-body-text></td>
+					<td><bbva-table-body-amount class="availableBalance" amount="100.00" currency="S/"></bbva-table-body-amount></td>
+					<td><bbva-table-body-amount class="accountedBalance" amount="100.00" currency="S/"></bbva-table-body-amount></td>
+				</tr>
+			</tbody></table>
+		</bbva-btge-accounts-solution-table>
+	</body></html>`
+
+	_, err := ParseAccountBalances(html)
+	_ = err
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "failed to convert current balance")
+	assert.ErrorContains(t, err, "missing list-group-currency")
+	assert.ErrorIs(t, err, bank.ErrParsingFailed)
 }
 
-func TestParseBalance_NoAccountsTableButOnlyJuridicTable(t *testing.T) {
-	// Load fixture
-	html := testutil.LoadFixture(t, "bbva", "balance_empty")
+func TestParseAccountBalances_ListViewMissingAvailableBalance(t *testing.T) {
+	html := `<html><body>
+		<bbva-btge-accounts-solution-table class="accountsTable" list-group-currency="PEN">
+			<table><tbody>
+				<tr class="row">
+					<td><bbva-table-body-text class="accountDescription" text="•1234"></bbva-table-body-text></td>
+					<td><bbva-table-body-amount class="availableBalance" currency="S/"></bbva-table-body-amount></td>
+					<td><bbva-table-body-amount class="accountedBalance" amount="100.00" currency="S/"></bbva-table-body-amount></td>
+				</tr>
+			</tbody></table>
+		</bbva-btge-accounts-solution-table>
+	</body></html>`
 
-	_, err := ParseBalanceUSD(html)
+	_, err := ParseAccountBalances(html)
+	_ = err
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "missing available balance amount")
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
-	assert.ErrorContains(t, err, string(bank.CurrencyUSD))
+}
+
+func TestParseAccountBalances_ListViewMissingAccountedBalance(t *testing.T) {
+	html := `<html><body>
+		<bbva-btge-accounts-solution-table class="accountsTable" list-group-currency="PEN">
+			<table><tbody>
+				<tr class="row">
+					<td><bbva-table-body-text class="accountDescription" text="•1234"></bbva-table-body-text></td>
+					<td><bbva-table-body-amount class="availableBalance" amount="100.00" currency="S/"></bbva-table-body-amount></td>
+					<td><bbva-table-body-amount class="accountedBalance" currency="S/"></bbva-table-body-amount></td>
+				</tr>
+			</tbody></table>
+		</bbva-btge-accounts-solution-table>
+	</body></html>`
+
+	_, err := ParseAccountBalances(html)
+	_ = err
+}
+
+func TestParseAccountBalances_TileViewUnknownCurrencySymbol(t *testing.T) {
+	html := `<html><body>
+		<bbva-btge-card-product-select id="XX001" product-amount="500.00" product-amount-currency="€">
+		</bbva-btge-card-product-select>
+	</body></html>`
+
+	_, err := ParseAccountBalances(html)
+	_ = err
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "unknown currency symbol: \"€\"")
+	assert.ErrorIs(t, err, bank.ErrParsingFailed)
 }
 
 func TestParseTransactions(t *testing.T) {

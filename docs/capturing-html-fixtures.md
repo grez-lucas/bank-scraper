@@ -3,7 +3,7 @@
 Author: Lucas Grez
 Created time: January 29, 2026 4:39 PM
 Last edited by: Lucas Grez
-Last updated time: January 29, 2026 4:39 PM
+Last updated time: February 20, 2026
 
 # Capturing HTML Fixtures for Bank Scraper Testing
 
@@ -22,6 +22,190 @@ Last updated time: January 29, 2026 4:39 PM
 | **3. Fully automated capture** | High | CI/CD fixture refresh |
 
 **Recommendation:** Start with Method 2 (semi-automated). It's the best balance of speed and repeatability.
+
+---
+
+## Shadow DOM Pages (BBVA 2026+)
+
+BBVA's post-login pages use Web Components (Polymer/Cells framework) with deeply nested shadow roots. A plain `document.documentElement.outerHTML` — or `copy(document.documentElement.outerHTML)` in DevTools — only returns **empty custom element shells**. The actual data (accounts, balances, transactions) is hidden behind multiple layers of shadow DOM, often with iframes interleaved.
+
+**This affects all three capture methods.** Before copying/saving HTML, you must run the shadow DOM flattener to inline shadow content into the regular DOM.
+
+### Why plain HTML capture fails
+
+```
+What outerHTML gives you:            What the parser needs:
+
+<bbva-btge-app-template>             <bbva-btge-app-template>
+  <bbva-btge-accounts-page>            <bbva-btge-accounts-page>
+    <!-- empty shell -->                 <div data-shadow-root="true">
+  </bbva-btge-accounts-page>               <table id="data-table">
+</bbva-btge-app-template>                    <tr><td>S/ 1,234.56</td></tr>
+                                           </table>
+                                         </div>
+                                       </bbva-btge-accounts-page>
+                                     </bbva-btge-app-template>
+```
+
+Shadow roots are not part of the serialized DOM. They must be walked and inlined explicitly.
+
+### How to flatten from the browser console
+
+Open DevTools (F12), go to the **Console** tab, and paste the following snippet. It walks every shadow root and iframe in the page, inlines their content into the regular DOM with marker attributes, and copies the result to your clipboard.
+
+```javascript
+// Shadow DOM + iframe flattener — paste into DevTools console.
+// Mirrors the logic in internal/scraper/browser/shadow.go.
+(() => {
+  const MAX_DEPTH = 100;
+  let shadowCount = 0;
+  let iframeCount = 0;
+
+  function flattenNode(node, depth) {
+    if (depth > MAX_DEPTH) return;
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        flattenElement(child, depth);
+      }
+    }
+  }
+
+  function flattenElement(el, depth) {
+    if (depth > MAX_DEPTH) return;
+    if (el.tagName === 'IFRAME') { inlineIframe(el, depth); return; }
+    if (el.shadowRoot) { flattenShadow(el, depth); return; }
+    flattenNode(el, depth + 1);
+  }
+
+  function flattenShadow(host, depth) {
+    const shadow = host.shadowRoot;
+    if (!shadow) return;
+
+    // Flatten light DOM children first (slotted Polymer components)
+    for (const child of Array.from(host.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        flattenElement(child, depth + 1);
+      }
+    }
+
+    // Then flatten shadow children
+    for (const child of Array.from(shadow.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        flattenElement(child, depth + 1);
+      }
+    }
+
+    // Serialize flattened shadow content into a marker div
+    const container = document.createElement('div');
+    container.setAttribute('data-shadow-root', 'true');
+    container.setAttribute('data-shadow-host', host.tagName.toLowerCase());
+
+    shadow.querySelectorAll('style').forEach(style => {
+      const s = document.createElement('style');
+      s.setAttribute('data-from-shadow', 'true');
+      s.textContent = style.textContent;
+      container.appendChild(s);
+    });
+
+    for (const child of Array.from(shadow.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE && child.tagName === 'STYLE') continue;
+      try { container.appendChild(child.cloneNode(true)); } catch(e) {}
+    }
+
+    shadowCount++;
+    host.appendChild(container);
+  }
+
+  function inlineIframe(iframe, depth) {
+    try {
+      const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+      if (!doc || !doc.documentElement) {
+        const err = iframe.ownerDocument.createElement('div');
+        err.setAttribute('data-captured-iframe', 'true');
+        err.setAttribute('data-iframe-error', 'no contentDocument');
+        err.setAttribute('data-iframe-src', iframe.src || '');
+        err.textContent = '[iframe not accessible]';
+        iframe.parentNode.replaceChild(err, iframe);
+        return;
+      }
+      flattenNode(doc.documentElement, depth + 1);
+      const container = iframe.ownerDocument.createElement('div');
+      container.setAttribute('data-captured-iframe', 'true');
+      container.setAttribute('data-iframe-src', iframe.src || '');
+      container.setAttribute('data-iframe-id', iframe.id || '');
+      container.setAttribute('data-iframe-name', iframe.name || '');
+      if (doc.head) {
+        doc.head.querySelectorAll('style').forEach(style => {
+          const s = iframe.ownerDocument.createElement('style');
+          s.setAttribute('data-from-iframe', 'true');
+          s.textContent = style.textContent;
+          container.appendChild(s);
+        });
+      }
+      if (doc.body) container.innerHTML += doc.body.innerHTML;
+      iframeCount++;
+      iframe.parentNode.replaceChild(container, iframe);
+    } catch(e) {
+      try {
+        const err = iframe.ownerDocument.createElement('div');
+        err.setAttribute('data-captured-iframe', 'true');
+        err.setAttribute('data-iframe-error', e.message);
+        err.setAttribute('data-iframe-src', iframe.src || '');
+        err.textContent = '[iframe error: ' + e.message + ']';
+        iframe.parentNode.replaceChild(err, iframe);
+      } catch(e2) {}
+    }
+  }
+
+  flattenNode(document.documentElement, 0);
+
+  const html = document.documentElement.outerHTML;
+  copy(html);
+  console.log(
+    `%c Flattened: ${shadowCount} shadow roots, ${iframeCount} iframes. HTML copied to clipboard (${html.length} chars).`,
+    'color: green; font-weight: bold'
+  );
+})();
+```
+
+After running, paste from your clipboard into a `.html` file. The HTML now contains:
+- `<div data-shadow-root="true" data-shadow-host="...">` — inlined shadow content
+- `<div data-captured-iframe="true" data-iframe-src="...">` — inlined iframe content
+- `<style data-from-shadow="true">` — styles extracted from shadow roots
+
+### When do you need this?
+
+| Page | Needs flattening? | Why |
+| --- | --- | --- |
+| Login page (pre-login) | No | Standard HTML, no Web Components |
+| Login error page | No | Same as login page |
+| Dashboard (post-login) | **Yes** | Polymer/Cells Web Components |
+| Balance pages | **Yes** | Nested shadow roots with data tables |
+| Transactions page | **Yes** | Shadow DOM + possibly iframes |
+| Logout modal | **Yes** | Web Component dialog |
+
+### Verifying the capture
+
+After flattening, search the saved HTML for your expected selectors:
+
+```bash
+# Should find data-shadow-root markers
+grep -c 'data-shadow-root' dashboard.html
+
+# Should find actual content (not empty shells)
+grep -c 'data-table\|saldo\|monto' balance_pen.html
+
+# Should NOT have empty custom elements with zero children
+# (indicates flattening didn't run or missed a shadow root)
+```
+
+### Important notes
+
+- **Flattening mutates the live DOM.** The page will look the same visually, but the DOM structure changes. Reload the page if you need to interact with it again after capturing.
+- **Cross-origin iframes** (e.g., analytics, tracking) will show `[iframe not accessible]` markers. This is expected — those iframes don't contain bank data.
+- **The script must run after the page is fully loaded.** Wait for all spinners/loading indicators to disappear before running.
+- **The canonical implementation** lives in `internal/scraper/browser/shadow.go` (`FlattenShadowDOM`). If the JS snippet above drifts out of sync, regenerate it from there.
 
 ---
 
@@ -48,8 +232,10 @@ Option B: Console
 
 ```
 
-1. **Save screenshot** (for visual reference)
-2. **Sanitize sensitive data** (see section below)
+> **Shadow DOM warning:** Options A and B only capture the outer DOM. For post-login BBVA pages (dashboard, balances, transactions), you **must** run the shadow DOM flattener snippet from the "Shadow DOM Pages" section above first. Then use `copy(document.documentElement.outerHTML)` — the flattened content will already be inlined.
+
+7. **Save screenshot** (for visual reference)
+8. **Sanitize sensitive data** (see section below)
 
 ### Pros & Cons
 
@@ -62,6 +248,8 @@ Option B: Console
 ❌ Easy to forget steps
 
 ❌ Hard to reproduce exactly
+
+❌ Misses shadow DOM content unless flattener is run first
 
 ---
 

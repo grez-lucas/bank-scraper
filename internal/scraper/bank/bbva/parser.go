@@ -14,11 +14,12 @@ import (
 
 const (
 	// -- ACCOUNTS --
-	// Table Column Indexes
-	colAccountID        = 0
-	colCurrentBalance   = 2
-	colAvailableBalance = 3
-	colCurrency         = 4
+
+	CurrencySymbolPEN = "S/"
+	CurrencySymbolUSD = "$"
+
+	CurrencyCodePEN = "PEN"
+	CurrencyCodeUSD = "USD"
 
 	// Table Labels
 	LabelSoles   = "SOLES"
@@ -95,27 +96,25 @@ func (r *BBVARow) ToTransaction() *bank.Transaction {
 
 // --- PUBLIC API ---
 
-func ParseBalances(html string) (*BalanceResult, error) {
-	penBalance, err := ParseBalancePEN(html)
+// ParseAccountBalances parses the 2026 redesigned accounts page.
+// Auto-detects view mode: list view (both balances) or tile view (available only).
+func ParseAccountBalances(html string) ([]bank.Balance, error) {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", bank.ErrParsingFailed, err)
 	}
-	usdBalance, err := ParseBalanceUSD(html)
-	if err != nil {
-		return nil, err
+
+	// List view has more data (both available and accounted balance).
+	if tables := doc.Find(SelectorAccountTable); tables.Length() > 0 {
+		return parseAccountsListView(doc)
 	}
-	return &BalanceResult{
-		USD: *usdBalance,
-		PEN: *penBalance,
-	}, nil
-}
 
-func ParseBalancePEN(html string) (*bank.Balance, error) {
-	return extractBalance(html, LabelSoles, bank.CurrencyPEN)
-}
+	// Tile view only has available balance.
+	if cards := doc.Find(SelectorAccountCard); cards.Length() > 0 {
+		return parseAccountsTileView(doc)
+	}
 
-func ParseBalanceUSD(html string) (*bank.Balance, error) {
-	return extractBalance(html, LabelDollars, bank.CurrencyUSD)
+	return nil, fmt.Errorf("%w: no account elements found", bank.ErrParsingFailed)
 }
 
 func ParseTransactions(html string) ([]bank.Transaction, error) {
@@ -210,51 +209,6 @@ func DetectLoginError(html string, statusCode int) error {
 
 // --- PRIVATE DOMAIN LOGIC ---
 
-func extractBalance(html string, targetLabel string, currency bank.Currency) (*bank.Balance, error) {
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse HTML: %v", bank.ErrParsingFailed, err)
-	}
-
-	var found bool
-	balance := &bank.Balance{
-		AccountID:        "",
-		Currency:         currency,
-		AvailableBalance: 0,
-		CurrentBalance:   0,
-		FetchedAt:        time.Now(),
-	}
-
-	var availStr, currStr string
-
-	doc.Find(SelectorAccountsTableRows).Each(func(i int, s *goquery.Selection) {
-		cells := s.Find("td")
-		rowCurrency := strings.TrimSpace(cells.Eq(colCurrency).Text())
-
-		if rowCurrency == targetLabel {
-			found = true
-			balance.AccountID = strings.TrimSpace(cells.Eq(colAccountID).Text())
-			currStr = strings.TrimSpace(cells.Eq(colCurrentBalance).Text())
-			availStr = strings.TrimSpace(cells.Eq(colAvailableBalance).Text())
-		}
-	})
-
-	if !found {
-		return nil, fmt.Errorf("%w: %s balance row not found", bank.ErrParsingFailed, currency)
-	}
-
-	balance.CurrentBalance, err = ParseSpanishAmount(currStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert current balance: %w", err)
-	}
-	balance.AvailableBalance, err = ParseSpanishAmount(availStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert available balance: %w", err)
-	}
-
-	return balance, nil
-}
-
 func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
 	var err error
 	var row BBVARow
@@ -298,6 +252,150 @@ func hasNoMovements(doc *goquery.Document) bool {
 	actualText := selection.Text()
 
 	return strings.Contains(actualText, expectedText)
+}
+
+// --- ACCOUNTS PAGE (2026) ---
+
+func parseAccountsListView(doc *goquery.Document) ([]bank.Balance, error) {
+	var balances []bank.Balance
+	var parseErr error
+
+	doc.Find(SelectorAccountTable).EachWithBreak(func(i int, table *goquery.Selection) bool {
+		currencyCode, exists := table.Attr("list-group-currency")
+		if !exists {
+			parseErr = fmt.Errorf("%w: table %d missing list-group-currency", bank.ErrParsingFailed, i)
+			return false
+		}
+
+		currency, err := currencyFromCode(currencyCode)
+		if err != nil {
+			parseErr = fmt.Errorf("%w: table %d: %v", bank.ErrParsingFailed, i, err)
+			return false
+		}
+
+		table.Find(SelectorAccountRow).EachWithBreak(func(j int, row *goquery.Selection) bool {
+			bal, err := parseListViewRow(row, currency)
+			if err != nil {
+				parseErr = fmt.Errorf("%w: table %d row %d: %v", bank.ErrParsingFailed, i, j, err)
+				return false
+			}
+			balances = append(balances, *bal)
+			return true
+		})
+
+		return parseErr == nil
+	})
+
+	if parseErr != nil {
+		return nil, parseErr
+	}
+
+	return balances, nil
+}
+
+func parseListViewRow(row *goquery.Selection, currency bank.Currency) (*bank.Balance, error) {
+	desc := row.Find(SelectorAccountDescription)
+	accountID := desc.AttrOr("text", "")
+
+	availStr := row.Find(SelectorAvailableBalance).AttrOr("amount", "")
+	if availStr == "" {
+		return nil, fmt.Errorf("missing available balance amount")
+	}
+	availBal, err := ParseSpanishAmount(availStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse available balance %q: %w", availStr, err)
+	}
+
+	acctStr := row.Find(SelectorAccountedBalance).AttrOr("amount", "")
+	if acctStr == "" {
+		return nil, fmt.Errorf("missing accounted balance amount")
+	}
+	acctBal, err := ParseSpanishAmount(acctStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse accounted balance %q: %w", acctStr, err)
+	}
+
+	return &bank.Balance{
+		AccountID:        accountID,
+		Currency:         currency,
+		AvailableBalance: availBal,
+		CurrentBalance:   acctBal,
+		FetchedAt:        time.Now(),
+	}, nil
+}
+
+func parseAccountsTileView(doc *goquery.Document) ([]bank.Balance, error) {
+	var balances []bank.Balance
+	var parseErr error
+
+	doc.Find(SelectorAccountCard).EachWithBreak(func(i int, card *goquery.Selection) bool {
+		bal, err := parseTileViewCard(card)
+		if err != nil {
+			parseErr = fmt.Errorf("%w: card %d: %v", bank.ErrParsingFailed, i, err)
+			return false
+		}
+		if bal == nil {
+			return true // Skip cards without amount data
+		}
+		balances = append(balances, *bal)
+		return true
+	})
+
+	if parseErr != nil {
+		return nil, parseErr
+	}
+
+	return balances, nil
+}
+
+func parseTileViewCard(card *goquery.Selection) (*bank.Balance, error) {
+	accountID := card.AttrOr("id", "")
+
+	amountStr, exists := card.Attr("product-amount")
+	if !exists || amountStr == "" {
+		return nil, nil // Skip cards without amount (e.g., "Todas las cuentas" overview)
+	}
+
+	currSymbol := card.AttrOr("product-amount-currency", "")
+	currency, err := currencyFromSymbol(currSymbol)
+	if err != nil {
+		return nil, err
+	}
+
+	amount, err := ParseSpanishAmount(amountStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse amount %q: %w", amountStr, err)
+	}
+
+	return &bank.Balance{
+		AccountID:        accountID,
+		Currency:         currency,
+		AvailableBalance: amount,
+		CurrentBalance:   0, // Tile view only shows available balance
+		FetchedAt:        time.Now(),
+	}, nil
+}
+
+func currencyFromSymbol(symbol string) (bank.Currency, error) {
+	switch symbol {
+	case CurrencySymbolPEN:
+		return bank.CurrencyPEN, nil
+	case CurrencySymbolUSD:
+		return bank.CurrencyUSD, nil
+	default:
+		return "", fmt.Errorf("unknown currency symbol: %q", symbol)
+	}
+}
+
+func currencyFromCode(code string) (bank.Currency, error) {
+	switch code {
+	case CurrencyCodePEN:
+		return bank.CurrencyPEN, nil
+	case CurrencyCodeUSD:
+		return bank.CurrencyUSD, nil
+	default:
+		return "", fmt.Errorf("unknown currency code: %q", code)
+	}
 }
 
 // --- LOW LEVEL UTILITIES ---

@@ -24,12 +24,11 @@ var capturePages = []PageCapture{
 	{Name: "login_error_403_forbidden", Instructions: "Trigger a 403 Forbidden page (bot detection / Akamai block)"},
 
 	// Post-login
-	{Name: "dashboard", Instructions: "Login with VALID credentials, wait for dashboard to load"},
-	{Name: "news_popup", Instructions: "If a news/feature popup appeared, capture it now (or skip)"},
-	{Name: "balance_pen", Instructions: "Navigate to the accounts page showing PEN account balances"},
-	{Name: "balance_usd", Instructions: "Navigate to or filter for USD account balances"},
-	{Name: "balance_empty", Instructions: "Navigate to an account table with no PEN/USD currency rows (or skip)"},
-	{Name: "balance_invalid", Instructions: "Navigate to a page with a malformed balance amount (or skip)"},
+	{Name: "dashboard_news_popup", Instructions: "Login with VALID credentials, wait for dashboard to load. If a news/feature popup appeared, capture it now (or skip)"},
+	{Name: "dashboard", Instructions: "Wait for dashboard to load"},
+	{Name: "accounts_news_popup", Instructions: "Navigate to the accounts page. If a news/feature popup appeared, capture it now (or skip)"},
+	{Name: "accounts_tile", Instructions: "Navigate to the accounts page (default tile/card view). Wait for account cards to load."},
+	{Name: "accounts_list", Instructions: "On the accounts page, RELOAD first (previous capture mutated DOM), then click the list-view button (bbva-button-group-item) to switch to list layout. Wait for the table to load."},
 	{Name: "transactions", Instructions: "Click 'Ver todos los movimientos' on any account"},
 	{Name: "transactions_empty", Instructions: "Navigate to an account with no recent transactions (or skip)"},
 	{Name: "transactions_invalid", Instructions: "Navigate to a page with malformed transaction rows (or skip)"},
