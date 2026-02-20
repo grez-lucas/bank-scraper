@@ -204,37 +204,51 @@ func (e *ScraperError) Unwrap() error {
 
 ## 3. The TDD Cycle for Scrapers
 
-### Phase 1: Capture Real HTML (One-time, Manual)
+### Phase 1: Discover Iframe Structure, Then Capture
 
-Before writing any code, capture real HTML from the bank:
+Bank portals nest content inside iframes. Before capturing fixtures, you must know **which frame** contains the data each parser will receive. The scraper calls `frame.HTML()` on a specific frame — fixtures must match that exact HTML.
 
-```bash
-# Record a session and save HTML snapshots
-./scripts/capture-fixtures.sh bbva
-
-```
-
-**capture-fixtures.sh:**
+#### Step 1: Run the iframe discovery script
 
 ```bash
-#!/bin/bash
-BANK=$1
-mkdir -p internal/scraper/bank/$BANK/testdata/fixtures
+go run ./scripts/discover-iframes -bank=bbva
+```
 
-echo "🎬 Opening browser for $BANK - save pages manually"
-echo "   Save each page as HTML to: internal/scraper/bank/$BANK/testdata/fixtures/"
-echo "   Required pages:"
-echo "     - login_page.html"
-echo "     - dashboard.html"
-echo "     - balance_pen.html"
-echo "     - balance_usd.html"
-echo "     - transactions.html"
-echo "     - login_error.html (invalid credentials)"
+This opens a browser and prompts you to navigate to each page. For each page it prints:
+- The iframe tree (nested frames, their `id`/`name`/`src`, visibility)
+- Which known CSS selectors exist in which frame
 
-# Open browser for manual capture
-go run ./scripts/capture/main.go --bank=$BANK
+Example output:
 
 ```
+PAGE: Dashboard
+  URL: https://www.bbvanetcash.pe/SPEKYOP85/.../index.html
+
+  FOUND  Dashboard table              table#kyop-boby-table  (visible=true, tag=table)
+
+  IFRAME main > iframe#content  visible=true  src=/SPEKYOP85/.../accounts.html
+    FOUND  Accounts table rows        #tabla-contenedor0_1 tbody tr  (visible=true, tag=tr)
+```
+
+#### Step 2: Document the iframe map
+
+Commit the output into `docs/bbva-webpage-behavior.md` under an **"## Iframe Map"** section. This becomes the reference for:
+- Which frame the scraper should navigate into (using `browser.GetIFrameBySelector`)
+- Which frame's `.HTML()` to save as a fixture
+
+#### Step 3: Capture fixtures from the correct frame
+
+```bash
+go run ./scripts/capture-fixtures -bank=bbva
+```
+
+The capture script uses `browser.GetIFrameBySelector` (or `GetDeepestVisibleFrame`) to reach the right frame, then saves `frame.HTML()` — **not** the main page HTML with iframes inlined. Each fixture contains exactly what the parser will receive in production.
+
+#### When to re-run discovery
+
+- After a bank redesign (iframe structure may change)
+- When a parser test fails with "selector not found" (selector may have moved to a different frame)
+- When adding parsers for new pages
 
 ### Phase 2: Write Parser Tests FIRST (TDD)
 
@@ -1311,6 +1325,9 @@ Track which HTML fixtures exist and which need to be captured or re-captured. Al
 
 ### Capture Instructions
 
-1. Open Chrome, navigate to the page, and save as HTML (`Ctrl+S` / `Cmd+S`)
-2. Save to `internal/scraper/bank/bbva/testdata/fixtures/`
+Fixtures must contain the HTML from the **specific frame** the parser receives, not the full page with iframes. Do NOT use `Ctrl+S` — it saves the outer document with empty `<iframe>` tags.
+
+1. **Run discovery first** if you haven't already: `go run ./scripts/discover-iframes -bank=bbva`
+2. **Capture via script:** `go run ./scripts/capture-fixtures -bank=bbva` — this navigates into the correct frame and saves `frame.HTML()`
 3. **Sanitize before commit:** Run `make sanitize-fixtures` to redact account numbers, balances, and PII
+4. **Verify:** Run `go test ./internal/scraper/bank/bbva/... -short` to confirm parsers work with the new fixtures
