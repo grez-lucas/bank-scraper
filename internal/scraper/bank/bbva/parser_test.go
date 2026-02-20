@@ -1,12 +1,15 @@
 package bbva
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
 	"github.com/grez-lucas/bank-scraper/internal/scraper/bank/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseAccountBalances_ListView(t *testing.T) {
@@ -583,6 +586,43 @@ func TestParseSpanishAmount(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.want, got)
 			}
+		})
+	}
+}
+
+func Test_hasNoMovements(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+		want bool
+	}{
+		{
+			"no table present",
+			"<html><body></body></html>",
+			false,
+		},
+		{
+			"table with state noresults",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table" state="noresults"></bbva-btge-accounts-solution-table></body></html>`,
+			true,
+		},
+		{
+			"table with empty state",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table" state=""></bbva-btge-accounts-solution-table></body></html>`,
+			false,
+		},
+		{
+			"table without state attribute",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table"></bbva-btge-accounts-solution-table></body></html>`,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := goquery.NewDocumentFromReader(strings.NewReader(tt.html))
+			require.NoError(t, err)
+			got := hasNoMovements(doc)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

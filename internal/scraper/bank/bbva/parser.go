@@ -26,13 +26,6 @@ const (
 	LabelDollars = "DOLARES"
 
 	// -- TRANSACTIONS --
-	colFOperacion = 0
-	colFValor     = 1
-	colCodigo     = 2
-	colNumDoc     = 3
-	colConcepto   = 4
-	colImporte    = 5
-	colOficina    = 6
 
 	BBVADateLayout = "02-01-2006"
 )
@@ -134,7 +127,7 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 		return nil, fmt.Errorf("%w: table not found with selector: %s", bank.ErrParsingFailed, SelectorTransactionsTable)
 	}
 
-	txnRows := doc.Find(SelectorTransactionsTableRows)
+	txnRows := doc.Find(SelectorTransactionRow)
 
 	// NOTE: If no transactions are found but the table exists,
 	// we return an empty slice.
@@ -209,49 +202,25 @@ func DetectLoginError(html string, statusCode int) error {
 
 // --- PRIVATE DOMAIN LOGIC ---
 
+// FIXME: REFACTOR THIS
 func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
-	var err error
-	var row BBVARow
-	if s == nil {
-		return nil, fmt.Errorf("unable to parse nil selection")
-	}
-	cells := s.Find("td")
-
-	row.FOperacion, err = ParseBankDate(cells.Eq(colFOperacion).Text())
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse Fecha de Operacion: %v", bank.ErrParsingFailed, err)
-	}
-	row.FValor, err = ParseBankDate(cells.Eq(colFValor).Text())
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse Fecha de Operacion: %v", bank.ErrParsingFailed, err)
-	}
-	row.Codigo = strings.TrimSpace(cells.Eq(colCodigo).Text())
-	row.NDoc = strings.TrimSpace(cells.Eq(colNumDoc).Text())
-	row.Concepto = strings.TrimSpace(cells.Eq(colConcepto).Text())
-
-	row.Importe, err = ParseSpanishAmount(cells.Eq(colImporte).Text())
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse Importe: %v", bank.ErrParsingFailed, err)
-	}
-
-	row.Oficina = strings.TrimSpace(cells.Eq(colOficina).Text())
-
-	return &row, nil
+	panic("fix me")
 }
 
 // hasNoMovements checks if the transaction page has a "No Movements" error.
 func hasNoMovements(doc *goquery.Document) bool {
-	selection := doc.Find(SelectorNoMovementsError)
+	table := doc.Find(SelectorTransactionsTable)
 
-	if selection.Length() == 0 {
+	if table.Length() == 0 {
 		return false
 	}
 
-	// Verify the content of the error message to be 100% sure
-	expectedText := "No existen datos para los criterios de búsqueda indicados."
-	actualText := selection.Text()
+	state, found := table.Attr("state")
+	if !found {
+		return false
+	}
 
-	return strings.Contains(actualText, expectedText)
+	return state == "noresults"
 }
 
 // --- ACCOUNTS PAGE (2026) ---

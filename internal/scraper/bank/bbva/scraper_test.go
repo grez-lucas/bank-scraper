@@ -116,7 +116,6 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	assert.Equal(t, "Login", scraperErr.Operation)
 }
 
-// TODO: Add non-legacy test...
 func TestBBVAScraper_Login_ReplayErrorInvalidCredentialsLegacy_Integration(t *testing.T) {
 	skipUnlessMode(t, TestModeReplay)
 

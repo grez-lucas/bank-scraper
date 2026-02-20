@@ -125,6 +125,58 @@ document
 - **50 transactions per page**
 - **"Ver mas" button** for pagination
 
+#### Transactions Table Structure (2026)
+
+The table container is `bbva-btge-accounts-solution-table#moviments-table`. Key attributes on the container:
+
+| Attribute | Has Data | Empty |
+|-----------|----------|-------|
+| `total-items` | `"56"` | `"0"` |
+| `state` | `""` | `"noresults"` |
+
+The `<tbody>` contains two kinds of `<tr>` elements:
+
+1. **Date group separators** — plain `<tr>` (no `.row` class) with a `bbva-table-row-group` element showing the running balance at that date. These are NOT transactions and must be skipped.
+2. **Transaction rows** — `<tr class="row" data-actionable="">` containing the actual transaction data.
+
+Each transaction row has these cells:
+
+| Cell | Component | Class | Key Attributes |
+|------|-----------|-------|----------------|
+| Operation date | `bbva-table-body-date` | `.operationDate` | `date="10 Feb"`, `year="2026"` |
+| Value date | `bbva-table-body-date` | `.valueDate` | `date="10 Feb"`, `year="2026"` |
+| Code | `bbva-table-body-text` | `.code` | `text="151"` |
+| Movement number | `bbva-table-body-text` | `.numberMovement` | `text="1411"` |
+| Concept | `bbva-table-body-text` | `.concept` | `text="PAGO FACTURA"`, `description="*Mp: 2060..."` |
+| Financeable | `bbva-table-body-action` | `.financeable` | (action button, not data) |
+| Amount | `bbva-table-body-amount` | `.transactionAmount` | `amount="-3.5"`, `secondary-amount="8577.97"` |
+
+**Amount conventions:**
+- Negative = debit (money out), positive = credit (money in)
+- `amount-variant="income"` is present on credit rows (but the sign is sufficient)
+- `secondary-amount` = running balance after the transaction
+
+**Concept has two parts:**
+- `text` attribute = main concept (e.g., `"PAGO FACTURA | SUNAT DETRACCIONES"`)
+- `description` attribute = beneficiary detail (e.g., `"*Mp: 20607818054S Com Sunat Detraccione@"`)
+
+**Date format:** Two attributes (`date` + `year`) combine to `"10 Feb 2026"`, parsed with Go layout `"02 Jan 2006"`. This replaces the old `DD-MM-YYYY` format.
+
+**Removed columns:** The old "Oficina" (branch office) column no longer exists in the 2026 table.
+
+#### Parsing Strategy
+
+All data is in **element attributes**, not text content. The parser:
+
+1. Finds `#moviments-table` — if missing, return `ErrParsingFailed`
+2. Checks `state="noresults"` — if so, return empty slice
+3. Iterates `tr.row[data-actionable]` (skips date-group separator rows)
+4. Per row, reads attributes from the typed cell components (`.operationDate`, `.code`, `.concept`, `.transactionAmount`, etc.)
+
+```
+Table → check state → iterate tr.row[data-actionable] → read attrs → []Transaction
+```
+
 ### Login Page (Unchanged)
 
 The login page does NOT use shadow DOM. It is a traditional HTML page with all elements in the light DOM. No flattening is needed for login.

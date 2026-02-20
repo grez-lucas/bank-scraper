@@ -39,8 +39,13 @@ const (
 	// Tile view
 	SelectorAccountCard = `bbva-btge-card-product-select`
 
-	// Transactions Page (pre-2026)
-	SelectorTransactionsTable     = "table#tabladatos"
-	SelectorTransactionsTableRows = "#tabladatos tbody tr:not(.tb_column_header):not(.tb_total)"
-	SelectorNoMovementsError      = "div.msj_ico.msj_err"
+	// Transactions Page (post-2026)
+	SelectorTransactionsTable = `bbva-btge-accounts-solution-table#moviments-table`
+	SelectorTransactionRow    = `tr.row[data-actionable]`
+	SelectorTxOperationDate   = `bbva-table-body-date.operationDate`
+	SelectorTxValueDate       = `bbva-table-body-date.valueDate`
+	SelectorTxCode            = `bbva-table-body-text.code`
+	SelectorTxMovementNumber  = `bbva-table-body-text.numberMovement`
+	SelectorTxConcept         = `bbva-table-body-text.concept`
+	SelectorTxAmount          = `bbva-table-body-text.transactionAmount`
 )
