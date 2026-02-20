@@ -73,8 +73,19 @@ sanitize-preview:
 # ============================== #
 
 # Sanitize recordings:
-sanitize-recordings:
+sanitize-recordings: sanitize-recordings-login sanitize-recordings-post-login
+
+# Sanitize login recordings:
+sanitize-recordings-login:
 	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-success
 	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-bot-detection
 	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=login-invalid-credentials-legacy
+
+# Sanitize post-login recordings:
+sanitize-recordings-post-login:
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=dashboard-load
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=accounts-page
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=transactions-all
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=transactions-load-more
+	go run ./scripts/sanitize-har/main.go -bank=bbva -scenario=logout
 
