@@ -4,39 +4,175 @@
 
 ## Overview
 
-The BBVA Net Cash portal (`bbvanetcash.pe`) uses a hybrid authentication system with two parallel login flows. Understanding these flows is critical for reliable scraping and test replay.
+The BBVA Net Cash portal (`bbvanetcash.pe`) uses a hybrid authentication system with two parallel login flows. Post-login pages (2026 redesign) use Web Components with deeply nested shadow DOM, requiring special handling to extract data.
+
+## Key Concepts
+
+### Shadow DOM
+
+Shadow DOM is a browser API that lets custom elements encapsulate their internal structure. An element's **shadow root** contains its private DOM tree that is invisible to `document.querySelector()` and `page.HTML()`.
+
+```
+<bbva-account-card>          ← host element (visible in page.HTML())
+  #shadow-root (open)        ← shadow boundary (NOT in page.HTML())
+    <div class="card">       ← shadow content (invisible to outer queries)
+      <span>S/ 1,234.56</span>
+    </div>
+</bbva-account-card>
+```
+
+A plain `page.HTML()` call returns only:
+
+```html
+<bbva-account-card></bbva-account-card>
+```
+
+The actual balance text is hidden behind the shadow boundary.
+
+### Web Components
+
+BBVA uses the Polymer/Cells framework to build custom HTML elements (Web Components). Each component (e.g., `<bbva-btge-accounts-solution-page>`) has its own shadow root containing its template, styles, and child components. These nest deeply — 5+ levels is common.
+
+### Micro-Frontends
+
+BBVA loads different sections of the portal as independent micro-applications inside iframes. The outer page is a Polymer app shell; the actual content lives in an iframe loaded from a different path. These iframes are themselves Web Components with their own shadow DOM trees.
+
+### Light DOM vs Shadow DOM
+
+- **Light DOM**: Regular DOM visible via `page.HTML()`, `document.querySelector()`, etc.
+- **Shadow DOM**: Private DOM inside a shadow root. Must be accessed via `element.shadowRoot` in JavaScript.
+- **Slotted content**: Light DOM children projected into shadow DOM via `<slot>` elements. These remain in the light DOM but render inside the shadow tree.
+
+The scraper's `FlattenShadowDOM()` function inlines all shadow content into the light DOM as `<div data-shadow-root="true">` containers, making it accessible to goquery parsers.
+
+## Shadow DOM Architecture
+
+### Post-Login Component Tree
+
+All post-login pages share this structure. The actual data lives 5+ levels deep behind shadow roots and an iframe.
+
+```
+document (light DOM — empty custom element shells)
+  → <bbva-btge-{page}-solution-page>
+      .shadowRoot
+        → <bbva-core-iframe>
+            .shadowRoot
+              → <iframe src=".../accounts/index.html#!/">  (same-origin)
+                  → contentDocument
+                    → <bbva-btge-{page}-solution-home-page>
+                        .shadowRoot
+                          → 30-40 nested shadow roots with actual data
+```
+
+### Dashboard
+
+```
+URL: /nextgenempresas/portal/index.html#!/bbva-btge-dashboard-solution/
+
+document
+  → bbva-btge-dashboard-solution-page.shadowRoot
+    → bbva-core-iframe.shadowRoot
+      → <iframe> (same-origin, ~70KB)
+        → contentDocument
+          → bbva-btge-dashboard-solution-home-page.shadowRoot
+            → Account cards, balance summaries, sidebar navigation
+```
+
+After login, the dashboard shows:
+- Balances for **all accounts** inline (no navigation needed)
+- Sidebar with navigation: Accounts, Transfers, etc.
+- Logout button in the sidebar
+
+### Accounts Page
+
+```
+URL: /nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution/
+
+document
+  → bbva-btge-accounts-solution-page.shadowRoot
+    → bbva-core-iframe.shadowRoot
+      → <iframe> (same-origin, ~70KB)
+        → contentDocument
+          → bbva-btge-accounts-solution-home-page.shadowRoot
+            → Currency tabs: "Todas las divisas", "Cuentas S/", "Cuentas $"
+            → Account cards with balances
+            → Latest 10 movements per account
+            → "Ver todos los movimientos" links
+```
+
+Key elements found inside nested shadow roots:
+- `"Todas las divisas"` — currency filter tabs
+- `"Cuentas S/"`, `"Cuentas $"` — PEN/USD account groups
+- `"PEN"`, `"USD"` — currency labels on account cards
+- Balance amounts per account
+- Total balance by currency
+
+### Transactions Page
+
+```
+URL: /nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution/account/{id}/movements
+
+document
+  → bbva-btge-accounts-solution-page.shadowRoot
+    → bbva-core-iframe.shadowRoot
+      → <iframe> (same-origin)
+        → contentDocument
+          → Transaction list with date, description, amount, balance
+          → "Ver mas" pagination button (loads next 50)
+```
+
+- Full history back to **January of the previous year**
+- **50 transactions per page**
+- **"Ver mas" button** for pagination
+
+### Login Page (Unchanged)
+
+The login page does NOT use shadow DOM. It is a traditional HTML page with all elements in the light DOM. No flattening is needed for login.
+
+```
+URL: /DFAUTH85/mult/KDPOSolicitarCredenciales_es.html
+
+document
+  → input#empresa           (light DOM, visible)
+  → input#usuario           (light DOM, visible)
+  → input#clave_acceso_ux   (light DOM, visible)
+  → button#aceptar          (light DOM, legacy flow)
+  → button#enviarSenda      (light DOM, micro-frontend flow)
+  → iframe#microfrontend    (hidden, used by Senda auth)
+```
 
 ## Login Flows
 
 ### Legacy Flow (Used by Scraper)
 
 ```
-User fills form → Clicks #aceptar → POST to DFServlet → Server response
+User fills form -> Clicks #aceptar -> POST to DFServlet -> Server response
 ```
 
 | Step | Details |
 |------|---------|
 | Button | `button#aceptar` (hidden, 5x5px) |
 | Endpoint | `POST /DFAUTH85/slod_pe_web/DFServlet` |
-| Success | HTTP 302 → redirect to dashboard |
+| Success | HTTP 302 -> redirect to dashboard |
 | Invalid credentials | HTTP 200 with error HTML page |
 | Bot detection | HTTP 403 (Akamai WAF) |
 
 ### Micro-Frontend Flow (Modern UI)
 
 ```
-User fills form → Clicks #enviarSenda → postMessage to iframe → Senda API → JS updates DOM
+User fills form -> Clicks #enviarSenda -> postMessage to iframe -> Senda API -> JS updates DOM
 ```
 
 | Step | Details |
 |------|---------|
 | Button | `button#enviarSenda` (visible "Ingresar" button) |
 | Auth API | `asosenda.bbva.pe/TechArchitecture/pe/grantingTicket/V02` |
-| Success | postMessage response → JS redirects |
-| Invalid credentials | Senda API 403 → JS shows error in `#error-message` span |
+| Success | postMessage response -> JS redirects |
+| Invalid credentials | Senda API 403 -> JS shows error in `#error-message` span |
 | Bot detection | Same as legacy (Akamai blocks at edge) |
 
 **Important:** The scraper uses the legacy flow because:
+
 1. Direct server responses are easier to capture and parse
 2. postMessage between windows is not captured in HAR recordings
 3. iframe authentication state is complex to replay
@@ -84,7 +220,7 @@ When DFServlet returns 200 with an error, the HTML contains:
 </div>
 
 <!-- Error message -->
-<h1 class="title">No pudimos iniciar tu sesión</h1>
+<h1 class="title">No pudimos iniciar tu sesion</h1>
 ```
 
 ### CSS Selectors for Error Detection
@@ -112,11 +248,11 @@ SelectorLoginErrorSpan    = "span#error-message.coronita-small-icon-warning.icon
 After form submission, the browser fires many async requests:
 
 ```
-DFServlet POST (403) ─┬─→ wup-stats (200)
-                      ├─→ analytics (200)
-                      ├─→ Adobe DTM (200)
-                      ├─→ tracking pixels (200)
-                      └─→ ... many more
+DFServlet POST (403) -+-> wup-stats (200)
+                      +-> analytics (200)
+                      +-> Adobe DTM (200)
+                      +-> tracking pixels (200)
+                      +-> ... many more
 ```
 
 If capturing status codes naively, the 403 from DFServlet gets overwritten by subsequent 200s.
@@ -181,19 +317,33 @@ The response body may contain Akamai challenge JavaScript.
 
 | File | Scenario | Key Response |
 |------|----------|--------------|
-| `login-success.har.json` | Successful login | DFServlet 302 → dashboard |
+| `login-success.har.json` | Successful login | DFServlet 302 -> dashboard |
 | `login-bot-detection.har.json` | Akamai blocked | DFServlet 403 |
 | `login-invalid-credentials-legacy.har.json` | Wrong credentials | DFServlet 200 + error HTML |
 
-## Dashboard Detection
+## Cookie Consent Popup
 
-After successful login, verify by checking for dashboard element:
+The login page shows a cookie consent popup on first visit. The scraper must dismiss it before interacting with the login form. The popup is non-blocking (login form is still in the DOM) but may overlap input fields.
 
-```go
-SelectorDashboard = "table#kyop-boby-table.kyop-boby-table"
-```
+## Logout Flow
 
-**Important:** Call `page.MustWaitDOMStable()` before checking, as post-login JavaScript needs time to render.
+Logout is no longer a direct link/redirect:
+
+1. Click logout button in the sidebar
+2. Confirmation modal appears ("Are you sure?")
+3. Confirm to complete logout
+
+## Scraper Impact
+
+| Component | Action Required |
+|-----------|----------------|
+| `browser/shadow.go` | **Done** — `FlattenShadowDOM()` inlines shadow DOM + iframes into single HTML |
+| `capture-fixtures/main.go` | **Done** — uses `FlattenShadowDOM()` instead of iframe-only inlining |
+| `selectors.go` | New selectors needed after capturing flattened fixtures |
+| `parser.go` | New parsers for accounts page, dashboard balances, full history pagination |
+| `scraper.go` | Call `FlattenShadowDOM()` before passing HTML to parsers, add cookie popup dismissal |
+| Fixtures | Re-capture all post-login fixtures with shadow DOM flattener |
+| HAR recordings | Record new scenarios for dashboard, accounts, transactions, logout |
 
 ## Summary: Differentiating Error Types
 
@@ -207,63 +357,38 @@ SelectorDashboard = "table#kyop-boby-table.kyop-boby-table"
 
 ---
 
-## 2026 Redesign (Post-Login Pages)
+## Iframe Discovery Output
 
-> As of February 2026, BBVA redesigned all post-login pages. The login page itself remains unchanged.
+> Output from `scripts/discover-iframes` run against the live portal (Feb 2026).
+> Note: The discover tool only sees light DOM elements. All post-login pages show "(no known selectors found)" because content is inside shadow roots, not queryable from the outer document.
 
-### What Changed
+### Login Page
 
-| Area | Before | After |
-|------|--------|-------|
-| Login page | Same | **Unchanged** (legacy `#aceptar` flow still works) |
-| Dashboard | Table-based (`#kyop-boby-table`) | New layout with inline balances for all accounts + sidebar navigation |
-| Accounts | Separate balance pages | Single accounts page with balance summary by currency |
-| Transactions | Same table structure | "Ver todos los movimientos" with full history back to Jan of previous year |
-| Logout | Direct link | Sidebar button + confirmation modal |
-| Session timeout | 10 minutes | **Unchanged** (10 minutes without activity) |
+```
+URL: /DFAUTH85/mult/KDPOSolicitarCredenciales_es.html
 
-### Cookie Consent Popup
+FOUND  Company input                   input#empresa  (visible=true)
+FOUND  User input                      input#usuario  (visible=true)
+FOUND  Password input                  input#clave_acceso_ux  (visible=true)
+FOUND  Login button (legacy)           button#aceptar  (visible=true)
+FOUND  Login button (senda)            button#enviarSenda  (visible=true)
+FOUND  Login error span                span#error-message  (visible=true)
 
-The login page now shows a cookie consent popup on first visit. The scraper must dismiss it before interacting with the login form. The popup is non-blocking (login form is still in the DOM) but may overlap input fields.
+IFRAME main > iframe#microfrontend  visible=false
+  (Senda auth iframe — not used by scraper)
+```
 
-### Dashboard
+### Post-Login Pages (Dashboard, Accounts, Transactions, Logout)
 
-After login, the dashboard now shows:
-- Balances for **all accounts** directly on the main page (no navigation needed)
-- Sidebar with navigation links: Accounts, Transfers, etc.
-- Logout button in the sidebar
+All post-login pages show the same pattern: no selectors found in light DOM, only a Google Tag Manager iframe visible. This is because all content is inside shadow roots.
 
-The old dashboard selector (`table#kyop-boby-table.kyop-boby-table`) may no longer work. New selectors need to be captured from the live page.
+```
+URL: /nextgenempresas/portal/index.html#!/bbva-btge-{page}-solution/
 
-### Accounts Page
+(no known selectors found in light DOM)
 
-Navigating to the accounts page from the sidebar shows:
-- **News/feature popup** (temporary, appears on first visit after redesign) - must be dismissed
-- **Latest 10 movements** per account displayed inline
-- **Total balance by currency** (PEN and USD summaries)
-- Link to "Ver todos los movimientos" for full transaction history
+IFRAME main > iframe[0]  visible=false  src=
+  (Google Tag Manager service worker iframe)
+```
 
-### Transactions (Full History)
-
-Clicking "Ver todos los movimientos" on an account shows:
-- Transaction history going back to **January of the previous year**
-- **50 transactions per page**
-- **"Ver mas" button** for pagination (loads next 50)
-- Same transaction data fields (date, description, amount, balance)
-
-### Logout Flow
-
-Logout is no longer a direct link/redirect:
-1. Click logout button in the sidebar
-2. Confirmation modal appears ("Are you sure?")
-3. Confirm to complete logout
-
-### Scraper Impact
-
-| Component | Action Required |
-|-----------|----------------|
-| `selectors.go` | Add cookie popup selector, update dashboard selector, add sidebar/accounts/logout selectors |
-| `scraper.go` | Add `dismissCookiePopup` helper, update `isLoginSuccessful` for new dashboard |
-| `parser.go` | New parsers for accounts page, dashboard balances, full history pagination |
-| Fixtures | Re-capture all post-login fixtures, add new ones for accounts/transactions/logout |
-| HAR recordings | Record new scenarios for dashboard, accounts, transactions, logout |
+To discover selectors inside shadow DOM, use the capture-fixtures tool with `FlattenShadowDOM()` and inspect the resulting HTML fixtures.
