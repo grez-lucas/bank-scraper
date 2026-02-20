@@ -66,7 +66,20 @@ const flattenShadowDOMJS = `() => {
 		const shadow = host.shadowRoot;
 		if (!shadow) return;
 
-		// First: recurse into shadow children (depth-first, bottom-up)
+		// First: flatten light DOM children of the host. These children
+		// are projected into the shadow tree via <slot> but live in
+		// host.childNodes, NOT shadow.childNodes. If they are themselves
+		// shadow hosts (e.g. slotted Polymer components like
+		// <bbva-btge-accounts-solution-page> inside <bbva-btge-app-template>),
+		// their shadow roots would otherwise be skipped entirely.
+		const lightChildren = Array.from(host.childNodes);
+		for (const child of lightChildren) {
+			if (child.nodeType === Node.ELEMENT_NODE) {
+				flattenElement(child, depth + 1);
+			}
+		}
+
+		// Then: recurse into shadow children (depth-first, bottom-up)
 		// This ensures iframes inside the shadow root are inlined before
 		// we serialize the shadow content.
 		const shadowChildren = Array.from(shadow.childNodes);
