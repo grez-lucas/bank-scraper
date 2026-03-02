@@ -27,8 +27,23 @@ const (
 
 	// -- TRANSACTIONS --
 
-	BBVADateLayout = "02-01-2006"
+	bbvaDateLayout     = "02-01-2006"
+	bbvaDateLayout2026 = "02 Jan 2006"
 )
+
+var spanishMonths = map[string]string{
+	"Ene": "Jan",
+	"Feb": "Feb",
+	"Mar": "Mar",
+	"Abr": "Apr",
+	"Jun": "Jun",
+	"Jul": "Jul",
+	"Ago": "Aug",
+	"Sep": "Sep",
+	"Oct": "Oct",
+	"Nov": "Nov",
+	"Dic": "Dec",
+}
 
 type LoginErrorInfo struct {
 	Code       string
@@ -51,13 +66,13 @@ type BalanceResult struct {
 
 // BBVARow represents a row in the BBVA transactions HTML table
 type BBVARow struct {
-	FOperacion time.Time
-	FValor     time.Time
-	Codigo     string
-	NDoc       string
-	Concepto   string
-	Importe    int64 // Can be negative, represents two decimal precision (e.g., -2,000.00 or -0.90)
-	Oficina    string
+	FOperacion       time.Time
+	FValor           time.Time
+	Codigo           string
+	NumeroMovimiento string
+	Concepto         string
+	Importe          int64 // Can be negative, represents two decimal precision (e.g., -2,000.00 or -0.90)
+	Oficina          string
 }
 
 func (r *BBVARow) IsPositiveImport() bool {
@@ -75,7 +90,7 @@ func (r *BBVARow) ToTransaction() *bank.Transaction {
 	}
 
 	return &bank.Transaction{
-		ID:           r.NDoc,
+		ID:           r.NumeroMovimiento,
 		Reference:    "",
 		Date:         r.FOperacion,
 		ValueDate:    r.FValor,
@@ -384,11 +399,29 @@ func ParseSpanishAmount(s string) (int64, error) {
 	return int64(math.Round(floatVal * 100)), nil
 }
 
+// parseBankDate2026 parses the 2026 date format: date attr ("10 Feb") + year attr ("2026").
+// Spanish month abbreviations (Ene, Feb, Mar, ...) are translated to English before parsing.
+func parseBankDate2026(date, year string) (time.Time, error) {
+	cleanStr := strings.Fields(date)
+	if len(cleanStr) != 2 {
+		return time.Time{}, fmt.Errorf("invalid date format: %s", date)
+	}
+
+	engMonth := spanishMonths[cleanStr[1]]
+
+	parsedDate, err := time.Parse(bbvaDateLayout2026, strings.Join([]string{cleanStr[0], engMonth, year}, " "))
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return parsedDate, nil
+}
+
 func ParseBankDate(s string) (time.Time, error) {
 	// 1. Clean up the string
 	cleanStr := strings.TrimSpace(s)
 	// 2. Parse using reference layout
-	t, err := time.Parse(BBVADateLayout, cleanStr)
+	t, err := time.Parse(bbvaDateLayout, cleanStr)
 	if err != nil {
 		return time.Time{}, err
 	}
