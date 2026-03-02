@@ -198,163 +198,71 @@ func TestParseAccountBalances_TileViewUnknownCurrencySymbol(t *testing.T) {
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
 }
 
+func int64Ptr(v int64) *int64 { return &v }
+
 func TestParseTransactions(t *testing.T) {
 	html := testutil.LoadFixture(t, "bbva", "transactions")
 
 	got, err := ParseTransactions(html)
 
-	// Helper to make the test data readable
-	dateHelper := func(day int) time.Time {
-		return time.Date(2026, 1, day, 0, 0, 0, 0, time.UTC)
-	}
+	require.NoError(t, err)
+	require.Len(t, got, 50)
 
-	want := []bank.Transaction{
-		{
-			ID:           "0000001398",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "*C/ HAB4ta   0130007",
-			Amount:       999273, // 9,992.73 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "015",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001400",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "*C/PH4OB",
-			Amount:       345518, // 3,455.18 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "015",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001396",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "*C/ HAB5ta   0130006",
-			Amount:       200000, // 2,000.00 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "015",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001403",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(31), // Value date is 31st
-			Description:  "COMISION DE MANTENIMIENTO",
-			Amount:       3000, // 30.00 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "638",
-				"Office": "0923",
-			},
-		},
-		{
-			ID:           "0000001402",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "*/COMIS.TRASPASO OTRO BANCO-",
-			Amount:       200, // 2.00 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "015",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001395",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "ITF",
-			Amount:       90, // 0.90 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "527",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001399",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "ITF",
-			Amount:       45, // 0.45 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "527",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001401",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "ITF",
-			Amount:       15, // 0.15 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "527",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001397",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "ITF",
-			Amount:       10, // 0.10 (Positive)
-			Type:         bank.TransactionDebit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "527",
-				"Office": "0437",
-			},
-		},
-		{
-			ID:           "0000001394",
-			Reference:    "",
-			Date:         dateHelper(30),
-			ValueDate:    dateHelper(30),
-			Description:  "ENTREGA A RENDIR",
-			Amount:       1800000, // 18,000.00
-			Type:         bank.TransactionCredit,
-			BalanceAfter: nil,
-			Extra: map[string]string{
-				"Codigo": "507",
-				"Office": "0437",
-			},
-		},
-	}
+	// Row 0: first row — debit, Feb 2026
+	row0 := got[0]
+	assert.Equal(t, "1411", row0.ID)
+	assert.Equal(t, "", row0.Reference)
+	assert.Equal(t, time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), row0.Date)
+	assert.Equal(t, time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), row0.ValueDate)
+	assert.Equal(t, "PAGO FACTURA | SUNAT DETRACCIONES", row0.Description)
+	assert.Equal(t, int64(350), row0.Amount)
+	assert.Equal(t, bank.TransactionDebit, row0.Type)
+	require.NotNil(t, row0.BalanceAfter)
+	assert.Equal(t, int64(857797), *row0.BalanceAfter)
+	assert.Equal(t, "151", row0.Extra["Codigo"])
+	assert.Equal(t, "*Mp: 20607818054S Com Sunat Detraccione@", row0.Extra["Beneficiary"])
 
-	assert.NoError(t, err)
-	assert.Len(t, got, 10)
+	// Row 8: debit with different op/value dates (30 Ene vs 31 Ene)
+	row8 := got[8]
+	assert.Equal(t, "1403", row8.ID)
+	assert.Equal(t, "", row8.Reference)
+	assert.Equal(t, time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC), row8.Date)
+	assert.Equal(t, time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC), row8.ValueDate)
+	assert.Equal(t, "COMISION DE MANTENIMIENTO", row8.Description)
+	assert.Equal(t, int64(3000), row8.Amount)
+	assert.Equal(t, bank.TransactionDebit, row8.Type)
+	require.NotNil(t, row8.BalanceAfter)
+	assert.Equal(t, int64(1107432), *row8.BalanceAfter)
+	assert.Equal(t, "638", row8.Extra["Codigo"])
+	assert.Equal(t, "Comision De Mantenimiento", row8.Extra["Beneficiary"])
 
-	assert.EqualValues(t, want, got)
+	// Row 17: credit (positive amount)
+	row17 := got[17]
+	assert.Equal(t, "1394", row17.ID)
+	assert.Equal(t, "", row17.Reference)
+	assert.Equal(t, time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC), row17.Date)
+	assert.Equal(t, time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC), row17.ValueDate)
+	assert.Equal(t, "ABONO POR TRASPASO", row17.Description)
+	assert.Equal(t, int64(1800000), row17.Amount)
+	assert.Equal(t, bank.TransactionCredit, row17.Type)
+	require.NotNil(t, row17.BalanceAfter)
+	assert.Equal(t, int64(2655583), *row17.BalanceAfter)
+	assert.Equal(t, "507", row17.Extra["Codigo"])
+	assert.Equal(t, "Entrega A Rendir                       @", row17.Extra["Beneficiary"])
+
+	// Row 49: last row — debit, Nov 2025
+	row49 := got[49]
+	assert.Equal(t, "1362", row49.ID)
+	assert.Equal(t, "", row49.Reference)
+	assert.Equal(t, time.Date(2025, 11, 28, 0, 0, 0, 0, time.UTC), row49.Date)
+	assert.Equal(t, time.Date(2025, 11, 28, 0, 0, 0, 0, time.UTC), row49.ValueDate)
+	assert.Equal(t, "NOTA DE CARGO", row49.Description)
+	assert.Equal(t, int64(170000), row49.Amount)
+	assert.Equal(t, bank.TransactionDebit, row49.Type)
+	require.NotNil(t, row49.BalanceAfter)
+	assert.Equal(t, int64(1177375), *row49.BalanceAfter)
+	assert.Equal(t, "015", row49.Extra["Codigo"])
+	assert.Equal(t, "*C/Ph4Ob", row49.Extra["Beneficiary"])
 }
 
 func TestParseTransactions_InvalidHTML(t *testing.T) {
@@ -380,13 +288,26 @@ func TestParseTransactions_EmptyTransactions(t *testing.T) {
 }
 
 func TestParseTransactions_InvalidRow(t *testing.T) {
-	html := testutil.LoadFixture(t, "bbva", "transactions_invalid")
+	// Inline HTML with empty date attr to trigger parse error
+	html := `<html><body>
+		<bbva-btge-accounts-solution-table id="moviments-table" state="loaded" total-items="1">
+			<table><tbody>
+				<tr class="row" data-actionable>
+					<td><bbva-table-body-date class="operationDate" date="" year="2026"></bbva-table-body-date></td>
+					<td><bbva-table-body-date class="valueDate" date="10 Feb" year="2026"></bbva-table-body-date></td>
+					<td><bbva-table-body-text class="code" text="151"></bbva-table-body-text></td>
+					<td><bbva-table-body-text class="numberMovement" text="1411"></bbva-table-body-text></td>
+					<td><bbva-table-body-text class="concept" text="TEST" description="test"></bbva-table-body-text></td>
+					<td><bbva-table-body-amount class="transactionAmount" amount="-3.5" secondary-amount="100.00"></bbva-table-body-amount></td>
+				</tr>
+			</tbody></table>
+		</bbva-btge-accounts-solution-table>
+	</body></html>`
 
 	got, err := ParseTransactions(html)
 
 	assert.Error(t, err)
 	assert.Nil(t, got)
-
 	assert.ErrorIs(t, err, bank.ErrParsingFailed)
 }
 
@@ -516,6 +437,71 @@ func TestParseBankDate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := ParseBankDate(tc.input)
 
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestParseBankDate2026(t *testing.T) {
+	tests := []struct {
+		name    string
+		date    string
+		year    string
+		want    time.Time
+		wantErr bool
+	}{
+		{
+			"Feb date",
+			"10 Feb",
+			"2026",
+			time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+			false,
+		},
+		{
+			"Ene (January in Spanish)",
+			"30 Ene",
+			"2026",
+			time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
+			false,
+		},
+		{
+			"Dic (December in Spanish)",
+			"31 Dic",
+			"2025",
+			time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC),
+			false,
+		},
+		{
+			"Nov date",
+			"28 Nov",
+			"2025",
+			time.Date(2025, 11, 28, 0, 0, 0, 0, time.UTC),
+			false,
+		},
+		{
+			"empty date",
+			"",
+			"2026",
+			time.Time{},
+			true,
+		},
+		{
+			"empty year",
+			"10 Feb",
+			"",
+			time.Time{},
+			true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseBankDate2026(tc.date, tc.year)
 			if tc.wantErr {
 				assert.Error(t, err)
 			} else {

@@ -47,5 +47,5 @@ const (
 	SelectorTxCode            = `bbva-table-body-text.code`
 	SelectorTxMovementNumber  = `bbva-table-body-text.numberMovement`
 	SelectorTxConcept         = `bbva-table-body-text.concept`
-	SelectorTxAmount          = `bbva-table-body-text.transactionAmount`
+	SelectorTxAmount          = `bbva-table-body-amount.transactionAmount`
 )
