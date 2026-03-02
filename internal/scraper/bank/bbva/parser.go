@@ -36,6 +36,7 @@ var spanishMonths = map[string]string{
 	"Feb": "Feb",
 	"Mar": "Mar",
 	"Abr": "Apr",
+	"May": "May",
 	"Jun": "Jun",
 	"Jul": "Jul",
 	"Ago": "Aug",
@@ -72,7 +73,8 @@ type BBVARow struct {
 	NumeroMovimiento string
 	Concepto         string
 	Importe          int64 // Can be negative, represents two decimal precision (e.g., -2,000.00 or -0.90)
-	Oficina          string
+	BalanceAfter     int64
+	Beneficiary      string
 }
 
 func (r *BBVARow) IsPositiveImport() bool {
@@ -97,8 +99,8 @@ func (r *BBVARow) ToTransaction() *bank.Transaction {
 		Description:  r.Concepto,
 		Amount:       absAmount,
 		Type:         txnType,
-		BalanceAfter: nil,
-		Extra:        map[string]string{"Office": r.Oficina, "Codigo": r.Codigo},
+		BalanceAfter: &r.BalanceAfter,
+		Extra:        map[string]string{"Beneficiary": r.Beneficiary, "Codigo": r.Codigo},
 	}
 }
 
@@ -217,9 +219,76 @@ func DetectLoginError(html string, statusCode int) error {
 
 // --- PRIVATE DOMAIN LOGIC ---
 
-// FIXME: REFACTOR THIS
 func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
-	panic("fix me")
+	// 1. Dates — find the date elements, read "date" + "year" attrs, call parseBankDate2026
+	opDateElem := s.Find(SelectorTxOperationDate)
+	opDateStr, exists := opDateElem.Attr("date")
+	if !exists {
+		return nil, fmt.Errorf("%w: missing operation date", bank.ErrParsingFailed)
+	}
+	opYearStr, exists := opDateElem.Attr("year")
+	if !exists {
+		return nil, fmt.Errorf("%w: missing operation year", bank.ErrParsingFailed)
+	}
+	opDate, err := parseBankDate2026(opDateStr, opYearStr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: parse operation date: %v", bank.ErrParsingFailed, err)
+	}
+
+	valDateElem := s.Find(SelectorTxValueDate)
+	valDateStr, exists := valDateElem.Attr("date")
+	if !exists {
+		return nil, fmt.Errorf("%w: missing value date", bank.ErrParsingFailed)
+	}
+	valYearStr, exists := s.Find(SelectorTxValueDate).Attr("year")
+	if !exists {
+		return nil, fmt.Errorf("%w: missing value year", bank.ErrParsingFailed)
+	}
+	valDate, err := parseBankDate2026(valDateStr, valYearStr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: parse value date: %v", bank.ErrParsingFailed, err)
+	}
+
+	// 2. Metadata — read "text" attr from code and movement number elements
+	code := s.Find(SelectorTxCode).AttrOr("text", "")
+	mvntNumber := s.Find(SelectorTxMovementNumber).AttrOr("text", "")
+
+	// 3. Concept — "text" attr (trimmed) for description, "description" attr for beneficiary
+	conceptElem := s.Find(SelectorTxConcept)
+	conceptStr := strings.TrimSpace(conceptElem.AttrOr("text", ""))
+	beneficiaryStr := strings.TrimSpace(conceptElem.AttrOr("description", ""))
+
+	// 4. Amount — "amount" attr → ParseSpanishAmount, "secondary-amount" attr → ParseSpanishAmount
+	amountElem := s.Find(SelectorTxAmount)
+	amountStr, exists := amountElem.Attr("amount")
+	if !exists {
+		return nil, fmt.Errorf("%w: missing amount", bank.ErrParsingFailed)
+	}
+	amount, err := ParseSpanishAmount(amountStr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: parse amount: %v", bank.ErrParsingFailed, err)
+	}
+
+	secondaryAmountStr, exists := amountElem.Attr("secondary-amount")
+	if !exists {
+		return nil, fmt.Errorf("%w: missing secondary-amount", bank.ErrParsingFailed)
+	}
+	secondaryAmount, err := ParseSpanishAmount(secondaryAmountStr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: parse secondary-amount: %v", bank.ErrParsingFailed, err)
+	}
+
+	// 5. Build and return BBVARow
+	return &BBVARow{
+		FOperacion:       opDate,
+		FValor:           valDate,
+		Codigo:           code,
+		NumeroMovimiento: mvntNumber,
+		Concepto:         conceptStr,
+		Importe:          amount,
+		BalanceAfter:     secondaryAmount,
+		Beneficiary:      beneficiaryStr,
+	}, nil
 }
 
 // hasNoMovements checks if the transaction page has a "No Movements" error.
