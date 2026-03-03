@@ -74,6 +74,12 @@ func TestBBVAScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 	assert.NotEmpty(t, session.ID, "Session ID should be set")
 	assert.Equal(t, bank.BankBBVA, session.BankCode, "Bank code should be BBVA")
 	assert.False(t, session.ExpiresAt.IsZero(), "Session expiry should be set")
+
+	// Page lifecycle: page and session should persist after successful login
+	assert.NotNil(t, scraper.page, "Page should be kept alive after successful login")
+	assert.NotNil(t, scraper.session, "Session should be stored on scraper")
+	assert.WithinDuration(t, time.Now().Add(bbvaSessionTimeout), session.ExpiresAt, 5*time.Second,
+		"Session expiry should be ~10 minutes from now")
 }
 
 func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) {
@@ -114,6 +120,10 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 
 	assert.Equal(t, bank.BankBBVA, scraperErr.BankCode)
 	assert.Equal(t, "Login", scraperErr.Operation)
+
+	// Page lifecycle: page and session should be cleaned up after failed login
+	assert.Nil(t, scraper.page, "Page should be closed after failed login")
+	assert.Nil(t, scraper.session, "Session should not be stored after failed login")
 }
 
 func TestBBVAScraper_Login_ReplayErrorInvalidCredentialsLegacy_Integration(t *testing.T) {
@@ -156,4 +166,47 @@ func TestBBVAScraper_Login_ReplayErrorInvalidCredentialsLegacy_Integration(t *te
 	// Verify error details from HAR contain expected error code and message
 	assert.Contains(t, scraperErr.Details, "EAI0000", "Details should contain error code")
 	assert.Contains(t, scraperErr.Details, "No pudimos iniciar tu sesión", "Details should contain error message")
+
+	// Page lifecycle: page and session should be cleaned up after failed login
+	assert.Nil(t, scraper.page, "Page should be closed after failed login")
+	assert.Nil(t, scraper.session, "Session should not be stored after failed login")
+}
+
+func TestBBVAScraper_Login_ReplayRelogin_Integration(t *testing.T) {
+	skipUnlessMode(t, TestModeReplay)
+
+	harPath := filepath.Join("testdata", "recordings", "login-success.har.json")
+	if _, err := os.Stat(harPath); os.IsNotExist(err) {
+		t.Skipf("Recording not found: %s\n", harPath)
+	}
+
+	har := testutil.MustLoadHAR(t, harPath)
+	replayer := testutil.NewReplayer(har)
+
+	scraper, err := NewBBVAScraper(
+		WithHijacker(replayer.Middleware()),
+		WithTimeout(5*time.Second),
+	)
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	ctx := context.Background()
+	creds := Credentials{
+		CompanyCode: "test-company",
+		UserCode:    "test-user",
+		Password:    "test-password",
+	}
+
+	// First login
+	session1, err := scraper.Login(ctx, creds)
+	require.NoError(t, err)
+	firstPage := scraper.page
+
+	// Second login (re-login) — should replace session and page
+	session2, err := scraper.Login(ctx, creds)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, session1.ID, session2.ID, "Re-login should create a new session ID")
+	assert.NotNil(t, scraper.page, "Page should be alive after re-login")
+	assert.NotSame(t, firstPage, scraper.page, "Re-login should create a new page")
 }
