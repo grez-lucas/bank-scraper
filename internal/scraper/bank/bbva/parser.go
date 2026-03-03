@@ -199,11 +199,7 @@ func DetectLoginError(html string, statusCode int) error {
 	}
 
 	code := strings.TrimSpace(doc.Find(SelectorLoginErrorCode).Text())
-	msg := strings.TrimSpace(doc.Find(SelectorLoginErrorSpan).Text())
-	if msg == "" {
-		// Check if the message is somewhere else - perhaps we got another html doc
-		msg = strings.TrimSpace(doc.Find(SelectorLoginErrorMessage).Text())
-	}
+	msg := strings.TrimSpace(doc.Find(SelectorLoginErrorMessage).Text())
 
 	// No error found
 	if code == "" && msg == "" {

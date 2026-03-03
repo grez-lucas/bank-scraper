@@ -341,9 +341,9 @@ func TestDetectLoginError_InvalidCredentials(t *testing.T) {
 
 	var loginErr *LoginErrorInfo
 	assert.ErrorAs(t, gotErr, &loginErr)
-	assert.Equal(t, "", loginErr.Code)
+	assert.Equal(t, "EAI0000", loginErr.Code)
 	assert.Equal(t, 200, loginErr.HTTPStatus)
-	assert.Equal(t, "Es necesario que corrijas los datos que ingresaste para poder continuar.", loginErr.Message)
+	assert.Equal(t, "No pudimos iniciar tu sesión", loginErr.Message)
 }
 
 func TestDetectLoginError_HTTPErrors(t *testing.T) {
