@@ -210,3 +210,39 @@ func TestBBVAScraper_Login_ReplayRelogin_Integration(t *testing.T) {
 	assert.NotNil(t, scraper.page, "Page should be alive after re-login")
 	assert.NotSame(t, firstPage, scraper.page, "Re-login should create a new page")
 }
+
+func TestBBVAScraper_GetBalance_Replay_Integration(t *testing.T) {
+	skipUnlessMode(t, TestModeReplay)
+
+	// HAR must contain login + accounts page navigation traffic
+	harPath := filepath.Join("testdata", "recordings", "get-balance.har.json")
+	if _, err := os.Stat(harPath); os.IsNotExist(err) {
+		t.Skipf("Recording not found: %s\n", harPath)
+	}
+
+	har := testutil.MustLoadHAR(t, harPath)
+	replayer := testutil.NewReplayer(har)
+
+	scraper, err := NewBBVAScraper(
+		WithHijacker(replayer.Middleware()),
+		WithTimeout(5*time.Second),
+	)
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	ctx := context.Background()
+
+	// Login first — hijacker stays alive for GetBalance navigation
+	_, err = scraper.Login(ctx, Credentials{
+		CompanyCode: "test-company",
+		UserCode:    "test-user",
+		Password:    "test-password",
+	})
+	require.NoError(t, err, "Login should succeed")
+
+	// Act
+	balances, err := scraper.GetBalance(ctx)
+
+	require.NoError(t, err)
+	assert.Len(t, balances, 2)
+}

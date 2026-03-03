@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	baseURL  = "https://www.bbvanetcash.pe"
-	loginURL = baseURL + "/DFAUTH85/mult/KDPOSolicitarCredenciales_es.html"
+	baseURL     = "https://www.bbvanetcash.pe"
+	loginURL    = baseURL + "/DFAUTH85/mult/KDPOSolicitarCredenciales_es.html"
+	accountsURL = baseURL + "/nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution"
 
 	// dfServletPath is the login form submission endpoint - we capture its
 	// status code to detect bot detection (403) or other server errors.
@@ -31,7 +32,8 @@ const (
 
 type BBVAScraper struct {
 	browser  *rod.Browser
-	page     *rod.Page    // Authenticated page, kept alive between operations
+	page     *rod.Page          // Authenticated page, kept alive between operations
+	router   *rod.HijackRouter  // Request hijacker, kept alive with the page
 	session  *bank.Session
 	timeout  time.Duration
 	hijacker func(*rod.Hijack) // Optional hijacker for replay testing
@@ -88,6 +90,7 @@ func NewBBVAScraper(opts ...Option) (*BBVAScraper, error) {
 func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Session, error) {
 	// Close previous page if re-logging in
 	if s.page != nil {
+		s.stopHijacker()
 		_ = s.page.Close()
 		s.page = nil
 		s.session = nil
@@ -103,10 +106,11 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 		}
 	}
 
-	// Close page on failure, keep alive on success
+	// Close page and hijacker on failure, keep alive on success
 	success := false
 	defer func() {
 		if !success {
+			s.stopHijacker()
 			_ = page.Close()
 		}
 	}()
@@ -140,7 +144,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	}
 
 	go router.Run()
-	defer router.Stop()
+	s.router = router
 
 	// Wait for the login form
 	if err := page.WaitLoad(); err != nil {
@@ -232,15 +236,68 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 }
 
 func (s *BBVAScraper) Close() error {
+	s.stopHijacker()
 	if s.page != nil {
 		_ = s.page.Close()
 		s.page = nil
 	}
+	s.session = nil
 	if s.browser != nil {
 		return s.browser.Close()
 	}
 	return nil
 }
+
+func (s *BBVAScraper) stopHijacker() {
+	if s.router != nil {
+		s.router.Stop()
+		s.router = nil
+	}
+}
+
+func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
+	if s.page == nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetBalance",
+			Cause:     bank.ErrSessionExpired,
+			Details:   "no active session — call Login first",
+		}
+	}
+
+	if err := navigateTo(s.page, accountsURL); err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetBalance",
+			Cause:     bank.ErrBankUnavailable,
+			Details:   fmt.Sprintf("navigate to accounts: %v", err),
+		}
+	}
+
+	html, _, _, err := browser.FlattenShadowDOM(s.page)
+	if err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetBalance",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
+		}
+	}
+
+	balances, err := ParseAccountBalances(html)
+	if err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetBalance",
+			Cause:     err,
+			Details:   "parse account balances failed",
+		}
+	}
+
+	return balances, nil
+}
+
+// --- PRIVATE DOMAIN LOGIC ---
 
 func (s *BBVAScraper) isLoginSuccessful(page *rod.Page) bool {
 	// Wait for DOM to stabilize after post-login JavaScript execution
