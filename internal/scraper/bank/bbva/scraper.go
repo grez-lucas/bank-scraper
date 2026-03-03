@@ -200,6 +200,9 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 		}
 	}
 
+	// Dismiss announcement modal if present (non-blocking)
+	dismissAnnouncementModal(page)
+
 	// Store session
 
 	session := &bank.Session{
@@ -225,6 +228,21 @@ func (s *BBVAScraper) isLoginSuccessful(page *rod.Page) bool {
 
 	_, err := page.Element(SelectorDashboard)
 	return err == nil
+}
+
+// dismissAnnouncementModal dismisses the news/announcement popup if present.
+// Non-blocking: if the modal isn't found or click fails, login continues.
+func dismissAnnouncementModal(page *rod.Page) {
+	el, err := page.Timeout(3 * time.Second).Element(SelectorAnnouncementCloseBtn)
+	if err != nil {
+		return // Modal not present
+	}
+	visible, err := el.Visible()
+	if err != nil || !visible {
+		return
+	}
+	_ = el.Click(proto.InputMouseButtonLeft, 1)
+	time.Sleep(500 * time.Millisecond)
 }
 
 func fillLoginForm(page *rod.Page, creds Credentials) error {

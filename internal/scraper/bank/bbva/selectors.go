@@ -14,7 +14,10 @@ const (
 	// Login error page
 	SelectorLoginErrorCode    = "div.error-code.error-title"
 	SelectorLoginErrorMessage = "h1.title"
-	SelectorLoginErrorSpan    = "span#error-message.coronita-small-icon-warning.icon-info-svg-warning.span-error"
+
+	// Announcement modal (post-login news popup)
+	SelectorAnnouncementModal    = `bbva-btge-microfrontend-modal[opened]`
+	SelectorAnnouncementCloseBtn = `bbva-btge-microfrontend-modal[opened] button.close-btn`
 
 	// Dashboard Page
 	SelectorDashboard = "table#kyop-boby-table.kyop-boby-table"

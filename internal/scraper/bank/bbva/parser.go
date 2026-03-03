@@ -175,6 +175,16 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 	return transactions, nil
 }
 
+// DetectAnnouncementModal returns true if the HTML contains an opened
+// announcement modal (bbva-btge-microfrontend-modal with opened attribute).
+func DetectAnnouncementModal(html string) bool {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		return false
+	}
+	return doc.Find(SelectorAnnouncementModal).Length() > 0
+}
+
 func DetectLoginError(html string, statusCode int) error {
 	// Handle HTTP errors first
 	switch statusCode {

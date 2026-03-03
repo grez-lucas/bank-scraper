@@ -576,6 +576,65 @@ func TestParseSpanishAmount(t *testing.T) {
 	}
 }
 
+func TestDetectAnnouncementModal(t *testing.T) {
+	tests := []struct {
+		name    string
+		fixture string
+		want    bool
+	}{
+		{"login_popup has opened modal", "login_popup", true},
+		{"dashboard_news_popup has opened modal", "dashboard_news_popup", true},
+		{"accounts_news_popup has opened modal", "accounts_news_popup", true},
+		{"dashboard without popup", "dashboard", false},
+		{"accounts_list without popup", "accounts_list", false},
+		{"transactions without popup", "transactions", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			html := testutil.LoadFixture(t, "bbva", tc.fixture)
+			got := DetectAnnouncementModal(html)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestDetectAnnouncementModal_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+		want bool
+	}{
+		{
+			"no modal element",
+			`<html><body><div>no modal here</div></body></html>`,
+			false,
+		},
+		{
+			"modal without opened attr",
+			`<html><body><bbva-btge-microfrontend-modal></bbva-btge-microfrontend-modal></body></html>`,
+			false,
+		},
+		{
+			"modal with opened attr",
+			`<html><body><bbva-btge-microfrontend-modal opened=""></bbva-btge-microfrontend-modal></body></html>`,
+			true,
+		},
+		{
+			"empty HTML",
+			``,
+			false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := DetectAnnouncementModal(tc.html)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func Test_hasNoMovements(t *testing.T) {
 	tests := []struct {
 		name string
