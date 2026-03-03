@@ -1,17 +1,11 @@
 package bank
 
-import (
-	"time"
-
-	"github.com/go-rod/rod"
-)
+import "time"
 
 type Session struct {
 	ID        string
 	BankCode  BankCode
 	ExpiresAt time.Time
-	// Internal: browser page reference (not exported)
-	page *rod.Page
 }
 
 // Balance represents the balance of an account for a certain currency

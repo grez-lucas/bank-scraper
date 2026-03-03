@@ -31,6 +31,7 @@ const (
 
 type BBVAScraper struct {
 	browser  *rod.Browser
+	page     *rod.Page    // Authenticated page, kept alive between operations
 	session  *bank.Session
 	timeout  time.Duration
 	hijacker func(*rod.Hijack) // Optional hijacker for replay testing
@@ -85,6 +86,13 @@ func NewBBVAScraper(opts ...Option) (*BBVAScraper, error) {
 }
 
 func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Session, error) {
+	// Close previous page if re-logging in
+	if s.page != nil {
+		_ = s.page.Close()
+		s.page = nil
+		s.session = nil
+	}
+
 	page, err := s.browser.Page(proto.TargetCreateTarget{URL: loginURL})
 	if err != nil {
 		return nil, &bank.ScraperError{
@@ -94,7 +102,14 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 			Details:   err.Error(),
 		}
 	}
-	defer page.Close()
+
+	// Close page on failure, keep alive on success
+	success := false
+	defer func() {
+		if !success {
+			_ = page.Close()
+		}
+	}()
 
 	page = page.Timeout(s.timeout)
 
@@ -203,19 +218,24 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	// Dismiss announcement modal if present (non-blocking)
 	dismissAnnouncementModal(page)
 
-	// Store session
-
+	// Store session and page for subsequent operations
 	session := &bank.Session{
 		ID:        generateSessionID(),
 		BankCode:  bank.BankBBVA,
 		ExpiresAt: time.Now().Add(bbvaSessionTimeout),
 	}
 	s.session = session
+	s.page = page
+	success = true
 
 	return session, nil
 }
 
 func (s *BBVAScraper) Close() error {
+	if s.page != nil {
+		_ = s.page.Close()
+		s.page = nil
+	}
 	if s.browser != nil {
 		return s.browser.Close()
 	}
