@@ -230,8 +230,23 @@ func (s *BBVAScraper) isLoginSuccessful(page *rod.Page) bool {
 	return err == nil
 }
 
+// navigateTo navigates to the given URL, waits for the page and DOM to
+// stabilize, then dismisses the announcement modal if present.
+// Use this for all post-login page navigation.
+func navigateTo(page *rod.Page, url string) error {
+	if err := page.Navigate(url); err != nil {
+		return fmt.Errorf("navigate to %s: %w", url, err)
+	}
+	if err := page.WaitLoad(); err != nil {
+		return fmt.Errorf("wait load %s: %w", url, err)
+	}
+	page.MustWaitDOMStable()
+	dismissAnnouncementModal(page)
+	return nil
+}
+
 // dismissAnnouncementModal dismisses the news/announcement popup if present.
-// Non-blocking: if the modal isn't found or click fails, login continues.
+// Non-blocking: if the modal isn't found or click fails, navigation continues.
 func dismissAnnouncementModal(page *rod.Page) {
 	el, err := page.Timeout(3 * time.Second).Element(SelectorAnnouncementCloseBtn)
 	if err != nil {
