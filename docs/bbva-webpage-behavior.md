@@ -280,7 +280,6 @@ When DFServlet returns 200 with an error, the HTML contains:
 ```go
 SelectorLoginErrorCode    = "div.error-code.error-title"
 SelectorLoginErrorMessage = "h1.title"
-SelectorLoginErrorSpan    = "span#error-message.coronita-small-icon-warning.icon-info-svg-warning.span-error"
 ```
 
 ### Known Error Codes
@@ -373,9 +372,18 @@ The response body may contain Akamai challenge JavaScript.
 | `login-bot-detection.har.json` | Akamai blocked | DFServlet 403 |
 | `login-invalid-credentials-legacy.har.json` | Wrong credentials | DFServlet 200 + error HTML |
 
-## Cookie Consent Popup
+## Announcement Modal
 
-The login page shows a cookie consent popup on first visit. The scraper must dismiss it before interacting with the login form. The popup is non-blocking (login form is still in the DOM) but may overlap input fields.
+After login (and sometimes on page navigation), a news/announcement modal (`bbva-btge-microfrontend-modal`) may appear with `opened=""` attribute. This is **not** a cookie consent popup — it is a promotional/news overlay.
+
+**Detection**: Check for `bbva-btge-microfrontend-modal[opened]` in the page HTML. The `opened` attribute is only present when the modal is visible.
+
+**Dismissal**: Click `button.close-btn` inside the opened modal. The close button exists in the DOM even when the modal is closed, so always check for the `[opened]` attribute first.
+
+**Fixtures with modal open**: `login_popup.html`, `dashboard_news_popup.html`, `accounts_news_popup.html`
+**Fixtures without modal**: `dashboard.html`, `accounts_list.html`, `transactions.html`
+
+**Shadow DOM note**: In the live browser, `button.close-btn` may live inside shadow DOM. Rod can traverse shadow boundaries via CDP. If the CSS selector doesn't cross shadow boundaries at runtime, fall back to `modal.ShadowRoot().Element("button.close-btn")`.
 
 ## Logout Flow
 
@@ -393,7 +401,7 @@ Logout is no longer a direct link/redirect:
 | `capture-fixtures/main.go` | **Done** — uses `FlattenShadowDOM()` instead of iframe-only inlining |
 | `selectors.go` | New selectors needed after capturing flattened fixtures |
 | `parser.go` | New parsers for accounts page, dashboard balances, full history pagination |
-| `scraper.go` | Call `FlattenShadowDOM()` before passing HTML to parsers, add cookie popup dismissal |
+| `scraper.go` | Call `FlattenShadowDOM()` before passing HTML to parsers, dismiss announcement modal after login |
 | Fixtures | Re-capture all post-login fixtures with shadow DOM flattener |
 | HAR recordings | Record new scenarios for dashboard, accounts, transactions, logout |
 
