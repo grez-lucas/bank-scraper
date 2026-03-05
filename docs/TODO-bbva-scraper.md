@@ -10,30 +10,55 @@
 
 | Component | Status |
 |-----------|--------|
-| `Login` | Working — HAR replay tested (success, 403, invalid creds, re-login) |
-| `GetBalance` | Working — navigates to accounts page, flattens shadow DOM, delegates to parser. Integration test ready (needs HAR recording). |
+| `Login` | Working — HAR replay tested (success, invalid creds, re-login). Uses Senda `#enviarSenda` flow. |
+| `Login` replay (Senda probe) | Working — separate-tab `probeSendaAPI` bypasses broken iframe postMessage chain in replay mode. Classifies grantingTicket 200→success, 403→error with error-code. |
+| `waitForLoginOutcome` | Working — dual-path: probe for replay mode, DOM polling (URL redirect + span#error-message) for live mode. |
+| `classifySendaError` | Working — handles both UI text (live) and API probe format `"senda API error-code NNN"` (replay). Unit tested. |
+| `classifySendaErrorCode` | Working — maps Senda error codes (160, 162) to typed errors. Unit tested. |
+| HijackRouter context fix | Working — router created before `page.Timeout()` to prevent `CancelTimeout()` from killing router's event context. |
+| `GetBalance` | Working — navigates to accounts page, flattens shadow DOM, delegates to parser. |
 | `ParseAccountBalances` | Working — unit tested against `accounts_list` and `accounts_tile` fixtures |
 | `ParseTransactions` | Working — unit tested against `transactions` fixture (50 rows) |
 | `DetectAnnouncementModal` | Working — unit tested against 6 fixtures + edge cases |
-| `dismissAnnouncementModal` | Working — called after login and in `navigateTo` |
+| `dismissAnnouncementModal` | Working — called after login and in `navigateTo`. Skipped in replay mode. |
 | `navigateTo` helper | Working — navigate + wait load + DOM stable + dismiss modal |
 | Page lifecycle | Working — page stored on `BBVAScraper`, cleaned up on failure/re-login/close |
 | Hijacker lifetime | Working — router stored on `BBVAScraper`, kept alive between operations, stopped on close/re-login/failure |
 | `FlattenShadowDOM` | Working — in `browser/shadow.go`, tested |
 | Selectors | All defined in `selectors.go` for accounts (list + tile) and transactions |
 
+## Test Status
+
+| Test | Mode | Status |
+|------|------|--------|
+| `TestBBVAScraper_Login_ReplaySuccess_Integration` | replay | PASS |
+| `TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration` | replay | PASS |
+| `TestBBVAScraper_Login_ReplayRelogin_Integration` | replay | PASS |
+| `TestBBVAScraper_Login_ReplayError403BotDetection_Integration` | replay | SKIP — needs re-recorded HAR with `#enviarSenda` |
+| `TestBBVAScraper_GetBalance_Replay_Integration` | replay | SKIP — portal SPA can't initialize in CDP Fetch replay (see below) |
+| `TestClassifySendaError` | mock | PASS (9 cases) |
+| `TestClassifySendaErrorCode` | mock | PASS (4 cases) |
+
 ---
 
-## Pending: Capture GetBalance HAR recording
+## Blocked: GetBalance / GetTransactions Replay Tests
 
-The `GetBalance` integration test is implemented but skips because `get-balance.har.json` doesn't exist yet.
+The portal SPA (Cells/Polymer framework) **cannot initialize in CDP Fetch replay mode**. CDP Fetch's `FetchFulfillRequest` bypasses cookie processing — `Set-Cookie` headers from replayed responses are NOT stored in the browser. The Cells framework's bootstrap chain requires auth cookies and `tsec` session tokens set during the real login redirect, so Custom Elements never register and the page renders empty shells with no shadow DOM content.
 
-```bash
-# Record a session that includes login + accounts page navigation
-go run ./scripts/record-session -bank=bbva -scenario=get-balance
-```
+**Attempted and failed:**
+- Injecting `tsec` into `sessionStorage`/`localStorage` — Cells framework stores session data through its own mechanisms
+- Navigating to `portalURL` after probe success — resources load but framework doesn't bootstrap
 
-The recording must include all HTTP traffic from login through accounts page load. The test calls Login first, then GetBalance — both served from the same HAR.
+**Possible approaches:**
+1. **Direct API probe** (like login) — identify the internal API endpoints the portal calls for balance/transaction data and probe them directly via the separate-tab technique. Most promising.
+2. **Re-architect replay** to use a local HTTP proxy instead of CDP Fetch, so cookies are processed normally. High effort.
+3. **Accept live-only integration tests** for GetBalance/GetTransactions, rely on unit-tested parsers for correctness. Pragmatic fallback.
+
+---
+
+## Pending: Re-record Bot Detection HAR
+
+`login-bot-detection.har.json` was recorded with the legacy `#aceptar` button. Needs re-recording with `#enviarSenda` to match the current scraper flow. The test is skipped until then.
 
 ---
 

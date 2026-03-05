@@ -386,10 +386,62 @@ The Senda flow makes 3 requests to the same grantingTicket URL with different me
 3. Exact URL (fallback, ignores method)
 4. Path only (fallback)
 
+### Senda API Probe (Replay Mode)
+
+In HAR replay mode, the Senda iframe `postMessage` chain is broken: the iframe loads its HTML/JS via CDP Fetch but never makes the actual grantingTicket API requests (the iframe's `fetch()` calls don't reach CDP Fetch because they originate from within the iframe's JS context, not from a navigation). Neither the portal redirect nor the `span#error-message` text ever occurs.
+
+**Solution:** The scraper uses a **separate browser tab probe**. When `s.hijacker != nil` (replay mode), `waitForLoginOutcome` bypasses DOM polling entirely and calls `probeSendaAPI`, which:
+
+1. Opens a new browser tab (`about:blank`)
+2. Sets up its own `HijackRouter` that delegates to the test's replayer middleware
+3. Navigates the tab to the `grantingTicket/V02` URL — CDP Fetch intercepts this as a navigation request
+4. The replayer serves the HAR-recorded response (200 for success, 403 for error)
+5. The hijacker callback captures the response on a channel
+6. `classifyProbeResponse` maps the HTTP status to `loginSuccess` or `loginError`
+
+This avoids cross-origin restrictions (JS `fetch()` from a hijacked page fails for cross-origin URLs) by using navigation-level interception instead.
+
+**Why a separate tab?** The login page's hijack router is already running. Rod doesn't support adding routes to a running router, and the login page's context may have stale timeout state. A fresh tab with its own router is clean and isolated.
+
+### Rod HijackRouter Context Bug
+
+`HijackRouter.initEvents()` (in Rod's `hijack.go`) captures the page's context at creation time via `context.WithCancel(ctx)`. If `page.Timeout(d)` is called **before** `page.HijackRequests()`, and later `page.CancelTimeout()` is called, it cancels the timeout context — which **also** cancels the router's event listener context. The router silently stops listening for `Fetch.requestPaused` events, causing all subsequent navigations to hang (Chrome pauses requests waiting for a fulfillment that never comes).
+
+**Fix:** Always call `page.HijackRequests()` **before** `page.Timeout()`:
+
+```go
+// ✅ CORRECT: router context derives from base page context
+router := page.HijackRequests()
+page = page.Timeout(s.timeout)
+// ... later ...
+page = page.CancelTimeout()  // only cancels timeout, router keeps running
+
+// ❌ WRONG: router context derives from timeout context
+page = page.Timeout(s.timeout)
+router := page.HijackRequests()
+// ... later ...
+page = page.CancelTimeout()  // kills both timeout AND router!
+```
+
+### CDP Fetch Limitations for SPA Replay
+
+CDP Fetch (`FetchFulfillRequest`) serves responses at the protocol level but **bypasses cookie processing**. `Set-Cookie` headers in replayed responses are NOT stored in the browser's cookie jar. This means:
+
+- Login page replay works fine (form filling, button clicks, and the Senda probe don't need cookies)
+- **Portal SPA replay fails**: The Cells/Polymer framework requires auth cookies and `tsec` session tokens set during the real login redirect chain. Without them, the framework's bootstrap JS loads but Custom Elements never register, leaving empty shells with no shadow DOM content.
+- Injecting `tsec` into `sessionStorage`/`localStorage` was attempted but insufficient — the Cells framework stores session data through its own mechanisms during the redirect chain.
+
+**Current status:** GetBalance and GetTransactions replay tests are skipped. These require either:
+1. Re-architecting replay to inject Cells session state (complex)
+2. Using a direct API probe approach (like login) to fetch balance/transaction data from API endpoints instead of scraping the SPA DOM
+3. A hybrid approach where replay tests only verify the API layer, not the SPA rendering
+
 ### Known Limitations
 
-1. **JavaScript state**: DOM changes from JS execution (e.g., `span#error-message` text) aren't in HAR — the browser must execute the page JS
-2. **Session cookies**: May need to be sanitized or regenerated
+1. **Iframe postMessage chain broken in replay**: The Senda iframe loads but never makes grantingTicket API calls. Solved by the separate-tab probe approach.
+2. **CDP Fetch bypasses Set-Cookie**: Replayed responses don't set cookies in the browser. Portal SPA cannot initialize without auth cookies.
+3. **Portal SPA (Cells/Polymer) needs live session state**: Custom Elements, Polymer bridge, and app bundles load but don't register/render without the full auth chain.
+4. **Session cookies**: May need to be sanitized or regenerated in HAR files.
 
 ### HAR Files
 
