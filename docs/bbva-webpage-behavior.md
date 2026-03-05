@@ -195,7 +195,47 @@ document
 
 ## Login Flows
 
-### Legacy Flow (Used by Scraper)
+### Senda Flow (Primary — Used by Scraper)
+
+```
+User fills form -> Clicks #enviarSenda -> preventDefault()
+  -> postMessage(credentials) to iframe#microfrontend
+  -> Iframe JS calls Senda API:
+    1. POST grantingTicket/V02 (pre-auth, authenticationType=61)
+    2. DELETE grantingTicket/V02 (clear pre-auth)
+    3. POST grantingTicket/V02 (auth, authenticationType=16, full creds)
+  -> Iframe postMessages result back to parent
+  -> Parent JS _validateLoginError(event, detail):
+    - DO_REDIRECT_SENDA -> location.href = portalURL (success!)
+    - LOGIN_ERROR -> span#error-message shows error text
+    - BLOQUED_USER -> span#error-message shows blocked text
+    - DO_LOGIN_LEGACY / UNKNOWN_LOGIN_ERROR -> buttonLegacy.click() (DFServlet fallback)
+```
+
+| Step | Details |
+|------|---------|
+| Button | `button#enviarSenda` (visible "Ingresar" button) |
+| Auth API | `asosenda.bbva.pe/TechArchitecture/pe/grantingTicket/V02` |
+| Success | `DO_REDIRECT_SENDA` → JS redirects to `/nextgenempresas/portal/` |
+| Invalid credentials | Senda API 403 (error-code 160/161) → `span#error-message` shows error text |
+| User blocked | Senda error-code 162/164 → `span#error-message` shows blocked text |
+| Bot detection | Akamai blocks at edge (403) before Senda API is reached |
+
+**Senda Error Messages** (shown in `span#error-message`):
+
+| Error Code | Message |
+|------------|---------|
+| EA160, EAI0000, USER_NOT_EXIST | "Es necesario que corrijas los datos que ingresaste para poder continuar." |
+| EA161, INVALID_PASSWORD | "Es necesario que corrijas los datos que ingresaste para poder continuar." |
+| EA162 | "Tu usuario está bloqueado..." |
+| EA164 | "Los datos ingresados son incorrectos. Alcanzaste el límite de intentos." |
+| UNKNOWN_LOGIN_ERROR | "Usuario no disponible." |
+
+**Scraper detection:** The scraper polls for two conditions after clicking `#enviarSenda`:
+1. **Success:** URL changes to contain `/nextgenempresas/portal/` (portal redirect)
+2. **Error:** `span#error-message` becomes visible with non-empty text
+
+### Legacy DFServlet Flow (Deprecated)
 
 ```
 User fills form -> Clicks #aceptar -> POST to DFServlet -> Server response
@@ -203,31 +243,13 @@ User fills form -> Clicks #aceptar -> POST to DFServlet -> Server response
 
 | Step | Details |
 |------|---------|
-| Button | `button#aceptar` (hidden, 5x5px) |
+| Button | `button#aceptar` (hidden, 5x5px transparent) |
 | Endpoint | `POST /DFAUTH85/slod_pe_web/DFServlet` |
 | Success | HTTP 302 -> redirect to dashboard |
 | Invalid credentials | HTTP 200 with error HTML page |
 | Bot detection | HTTP 403 (Akamai WAF) |
 
-### Micro-Frontend Flow (Modern UI)
-
-```
-User fills form -> Clicks #enviarSenda -> postMessage to iframe -> Senda API -> JS updates DOM
-```
-
-| Step | Details |
-|------|---------|
-| Button | `button#enviarSenda` (visible "Ingresar" button) |
-| Auth API | `asosenda.bbva.pe/TechArchitecture/pe/grantingTicket/V02` |
-| Success | postMessage response -> JS redirects |
-| Invalid credentials | Senda API 403 -> JS shows error in `#error-message` span |
-| Bot detection | Same as legacy (Akamai blocks at edge) |
-
-**Important:** The scraper uses the legacy flow because:
-
-1. Direct server responses are easier to capture and parse
-2. postMessage between windows is not captured in HAR recordings
-3. iframe authentication state is complex to replay
+**Note:** The legacy button is deprecated. BBVA hides it (5x5px transparent) and routes through `#enviarSenda` by default. The scraper previously used `#aceptar` but switched to `#enviarSenda` because HAR recordings captured with the Senda flow are replayable.
 
 ## Key Endpoints
 
@@ -258,7 +280,25 @@ Used by micro-frontend flow. Returns 403 on invalid credentials.
 
 ## Error Detection
 
-### Error Page HTML Structure
+### Senda Flow Error Detection (Primary)
+
+The Senda flow shows errors via `span#error-message` on the login page. The scraper detects errors by evaluating the element's visibility and text content:
+
+```go
+SelectorLoginErrorSpan = "span#error-message"
+```
+
+The scraper classifies error text into typed errors:
+
+| Error text contains | Typed error |
+|---------------------|-------------|
+| "corrijas los datos" | `ErrInvalidCredentials` |
+| "bloqueado" | `ErrInvalidCredentials` |
+| "límite de intentos" | `ErrInvalidCredentials` |
+| "no disponible" | `ErrBankUnavailable` |
+| (anything else) | `ErrUnknown` |
+
+### Legacy Error Page HTML Structure (DFServlet)
 
 When DFServlet returns 200 with an error, the HTML contains:
 
@@ -275,7 +315,7 @@ When DFServlet returns 200 with an error, the HTML contains:
 <h1 class="title">No pudimos iniciar tu sesion</h1>
 ```
 
-### CSS Selectors for Error Detection
+### CSS Selectors for Legacy Error Detection
 
 ```go
 SelectorLoginErrorCode    = "div.error-code.error-title"
@@ -292,38 +332,17 @@ SelectorLoginErrorMessage = "h1.title"
 | `EA162` | User blocked |
 | `EA164` | Token blocked (too many attempts) |
 
-## Request Explosion Problem
+## Request Explosion Problem (Legacy Flow Only)
+
+> **Note:** This section applies to the legacy DFServlet flow. The Senda flow does not have this problem because the scraper detects success/failure via URL change and `span#error-message` text, not HTTP status codes.
 
 ### The Issue
 
-After form submission, the browser fires many async requests:
+After DFServlet form submission, the browser fires many async requests whose 200 status codes can overwrite the captured DFServlet status.
 
-```
-DFServlet POST (403) -+-> wup-stats (200)
-                      +-> analytics (200)
-                      +-> Adobe DTM (200)
-                      +-> tracking pixels (200)
-                      +-> ... many more
-```
+### Legacy Solution
 
-If capturing status codes naively, the 403 from DFServlet gets overwritten by subsequent 200s.
-
-### Solution
-
-Only capture status codes from the DFServlet path:
-
-```go
-const dfServletPath = "/DFAUTH85/slod_pe_web/DFServlet"
-
-router.MustAdd("*", func(ctx *rod.Hijack) {
-    // Process request...
-
-    // Only capture status for form submission, ignore analytics
-    if ctx.Response != nil && strings.Contains(ctx.Request.URL().Path, dfServletPath) {
-        statusCode = ctx.Response.Payload().ResponseCode
-    }
-})
-```
+The legacy flow filtered status codes by DFServlet path. The Senda flow avoids this entirely by polling the DOM instead of capturing HTTP status codes.
 
 ## Bot Detection (Akamai WAF)
 
@@ -354,23 +373,32 @@ The response body may contain Akamai challenge JavaScript.
 
 ### Recording Requirements
 
-1. **Use legacy button** (`#aceptar`) during recording to capture DFServlet responses
+1. **Use `#enviarSenda` button** during recording to capture Senda API traffic
 2. **Wait for full page load** before stopping recording
-3. **Capture all requests** including redirects
+3. **Capture all requests** including Senda API calls (grantingTicket/V02)
+
+### Replayer Method-Aware Matching
+
+The Senda flow makes 3 requests to the same grantingTicket URL with different methods (POST, DELETE, POST). The replayer uses method-aware indexing to disambiguate:
+
+1. Method + exact URL (best match)
+2. Method + path only
+3. Exact URL (fallback, ignores method)
+4. Path only (fallback)
 
 ### Known Limitations
 
-1. **postMessage not captured**: Micro-frontend iframe communication isn't in HAR
-2. **JavaScript state**: DOM changes from JS execution aren't recorded
-3. **Session cookies**: May need to be sanitized or regenerated
+1. **JavaScript state**: DOM changes from JS execution (e.g., `span#error-message` text) aren't in HAR — the browser must execute the page JS
+2. **Session cookies**: May need to be sanitized or regenerated
 
 ### HAR Files
 
 | File | Scenario | Key Response |
 |------|----------|--------------|
-| `login-success.har.json` | Successful login | DFServlet 302 -> dashboard |
-| `login-bot-detection.har.json` | Akamai blocked | DFServlet 403 |
-| `login-invalid-credentials-legacy.har.json` | Wrong credentials | DFServlet 200 + error HTML |
+| `login-success.har.json` | Successful Senda login | grantingTicket POST 200 → portal redirect |
+| `login-bot-detection.har.json` | Akamai blocked | Needs re-recording with `#enviarSenda` |
+| `login-invalid-credentials-legacy.har.json` | Wrong credentials (Senda) | grantingTicket POST 403 → span#error-message |
+| `get-balance.har.json` | Login + accounts page | Full Senda login + accounts navigation |
 
 ## Announcement Modal
 
@@ -407,13 +435,25 @@ Logout is no longer a direct link/redirect:
 
 ## Summary: Differentiating Error Types
 
+### Senda Flow (Primary)
+
+| Signal | Error Type |
+|--------|------------|
+| URL → PortalPath + no dashboard | `ErrUnknown` |
+| `span#error-message` contains "corrijas los datos" | `ErrInvalidCredentials` |
+| `span#error-message` contains "bloqueado" | `ErrInvalidCredentials` |
+| `span#error-message` contains "límite de intentos" | `ErrInvalidCredentials` |
+| `span#error-message` contains "no disponible" | `ErrBankUnavailable` |
+| Timeout (no redirect, no error span) | `ErrUnknown` |
+| Connection/timeout errors | `ErrBankUnavailable` |
+
+### Legacy DFServlet Flow (Deprecated)
+
 | Signal | Error Type |
 |--------|------------|
 | DFServlet 403 | `ErrBotDetection` |
 | DFServlet 200 + error HTML | `ErrInvalidCredentials` |
 | DFServlet 302 + no dashboard | `ErrUnknown` |
-| Senda API 403 (micro-frontend) | `ErrInvalidCredentials` |
-| Connection/timeout errors | `ErrBankUnavailable` |
 
 ---
 
