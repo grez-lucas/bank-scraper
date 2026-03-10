@@ -266,6 +266,55 @@ func TestBBVAScraper_GetBalance_Replay_Integration(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), usd.FetchedAt, 10*time.Second)
 }
 
+func TestBBVAScraper_GetTransactions_Replay_Integration(t *testing.T) {
+	t.Skip("TODO: portal SPA (Cells framework) cannot initialize in replay mode — " +
+		"CDP Fetch bypasses cookie/session setup needed by the Polymer web components. " +
+		"Requires re-architecting replay to inject Cells session state or using a " +
+		"direct API probe approach for GetTransactions.")
+
+	skipUnlessMode(t, TestModeReplay)
+
+	// HAR must contain login + navigate to transactions page traffic
+	harPath := filepath.Join("testdata", "recordings", "get-transactions.har.json")
+	if _, err := os.Stat(harPath); os.IsNotExist(err) {
+		t.Skipf("Recording not found: %s\n", harPath)
+	}
+
+	har := testutil.MustLoadHAR(t, harPath)
+	replayer := testutil.NewReplayer(har)
+
+	scraper, err := NewBBVAScraper(
+		WithHijacker(replayer.Middleware()),
+		WithTimeout(45*time.Second),
+	)
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	ctx := context.Background()
+
+	// Login first
+	session, err := scraper.Login(ctx, Credentials{
+		CompanyCode: "test-company",
+		UserCode:    "test-user",
+		Password:    "test-pass",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	// Get transactions
+	txns, err := scraper.GetTransactions(ctx, "PE001101190100064607")
+
+	require.NoError(t, err)
+	require.NotEmpty(t, txns)
+
+	tx0 := txns[0]
+	assert.NotEmpty(t, tx0.ID)
+	assert.NotEmpty(t, tx0.Description)
+	assert.NotZero(t, tx0.Amount)
+	assert.False(t, tx0.Date.IsZero())
+	assert.WithinDuration(t, time.Now(), tx0.Date, 365*24*time.Hour)
+}
+
 func TestClassifySendaError(t *testing.T) {
 	tests := []struct {
 		name      string

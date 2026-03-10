@@ -66,4 +66,7 @@ const (
 	SelectorTxMovementNumber  = `bbva-table-body-text.numberMovement`
 	SelectorTxConcept         = `bbva-table-body-text.concept`
 	SelectorTxAmount          = `bbva-table-body-amount.transactionAmount`
+
+	// Pagination — "Ver más" link in the table footer
+	SelectorLoadMoreButton = `bbva-table-footer.footer-link-text`
 )

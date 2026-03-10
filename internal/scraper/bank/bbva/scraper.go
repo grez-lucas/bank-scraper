@@ -23,6 +23,8 @@ const (
 	portalURL   = baseURL + "/nextgenempresas/portal/index.html"
 	accountsURL = baseURL + "/nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution"
 
+	maxPaginationClicks = 20 // Safety limit for "Ver más" pagination loop
+
 	defaultTimeout = 30 * time.Second
 
 	bbvaSessionTimeout = 10 * time.Minute
@@ -271,6 +273,73 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	}
 
 	return balances, nil
+}
+
+// transactionsURL builds the URL for a specific account's movements page.
+func transactionsURL(accountID string) string {
+	return portalURL + "#!/bbva-btge-accounts-solution/account/" + accountID + "/movements"
+}
+
+func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]bank.Transaction, error) {
+	if s.page == nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrSessionExpired,
+			Details:   "no active session — call Login first",
+		}
+	}
+
+	page := s.page.Timeout(s.timeout)
+	if err := navigateTo(page, transactionsURL(accountID)); err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrBankUnavailable,
+			Details:   fmt.Sprintf("navigate to transactions: %v", err),
+		}
+	}
+
+	var allTxns []bank.Transaction
+	for i := 0; ; i++ {
+		html, _, _, err := browser.FlattenShadowDOM(page)
+		if err != nil {
+			return nil, &bank.ScraperError{
+				BankCode:  bank.BankBBVA,
+				Operation: "GetTransactions",
+				Cause:     bank.ErrUnknown,
+				Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
+			}
+		}
+
+		txns, err := ParseTransactions(html)
+		if err != nil {
+			return nil, &bank.ScraperError{
+				BankCode:  bank.BankBBVA,
+				Operation: "GetTransactions",
+				Cause:     err,
+				Details:   "parse transactions failed",
+			}
+		}
+
+		allTxns = txns
+
+		if !HasMoreTransactions(html) || i >= maxPaginationClicks {
+			break
+		}
+
+		// Click "Ver más" and wait for DOM to update with new rows
+		loadMoreBtn, err := page.Element(SelectorLoadMoreButton)
+		if err != nil {
+			break // Button not found in live DOM — stop paginating
+		}
+		if err := loadMoreBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+			break
+		}
+		page.MustWaitDOMStable()
+	}
+
+	return allTxns, nil
 }
 
 // --- PRIVATE DOMAIN LOGIC ---

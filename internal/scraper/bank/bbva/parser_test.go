@@ -576,6 +576,75 @@ func TestParseSpanishAmount(t *testing.T) {
 	}
 }
 
+func TestHasMoreTransactions(t *testing.T) {
+	tests := []struct {
+		name    string
+		fixture string
+		want    bool
+	}{
+		{"transactions with Ver más footer", "transactions", true},
+		{"transactions_load_more with Ver más footer", "transactions_load_more", true},
+		{"empty transactions page", "transactions_empty", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			html := testutil.LoadFixture(t, "bbva", tc.fixture)
+			got := HasMoreTransactions(html)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestHasMoreTransactions_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+		want bool
+	}{
+		{
+			"no table at all",
+			`<html><body></body></html>`,
+			false,
+		},
+		{
+			"table without footer",
+			`<html><body>
+				<bbva-btge-accounts-solution-table id="moviments-table" state="" total-items="5">
+					<table><tbody></tbody></table>
+				</bbva-btge-accounts-solution-table>
+			</body></html>`,
+			false,
+		},
+		{
+			"footer with different class (table-footer, not footer-link-text)",
+			`<html><body>
+				<bbva-table-footer class="table-footer" loading="" loading-text="Cargando"></bbva-table-footer>
+			</body></html>`,
+			false,
+		},
+		{
+			"footer-link-text present",
+			`<html><body>
+				<bbva-table-footer class="footer-link-text" variant="footer">Ver más</bbva-table-footer>
+			</body></html>`,
+			true,
+		},
+		{
+			"empty HTML",
+			``,
+			false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := HasMoreTransactions(tc.html)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestDetectAnnouncementModal(t *testing.T) {
 	tests := []struct {
 		name    string
