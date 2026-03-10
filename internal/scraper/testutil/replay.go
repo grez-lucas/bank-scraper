@@ -12,12 +12,19 @@ import (
 
 // Replayer serves recorded HTTP responses during test execution.
 type Replayer struct {
-	// exactMatches maps full URLs to entries
+	// exactMatches maps full URLs to entries (last wins)
 	exactMatches map[string]*HAREntry
 
-	// pathMatches maps URL paths (without query params) to entries
-	// Used as fallback when exact match fails
+	// pathMatches maps URL paths (without query params) to entries (first wins)
 	pathMatches map[string]*HAREntry
+
+	// methodExact maps "METHOD|URL" to entries (last wins per method+URL).
+	// Used to disambiguate requests to the same URL with different methods
+	// (e.g., POST and DELETE to grantingTicket/V02 in the Senda login flow).
+	methodExact map[string]*HAREntry
+
+	// methodPath maps "METHOD|path" to entries (first wins per method+path)
+	methodPath map[string]*HAREntry
 
 	// passthrough allows unmatched requests to go to the network
 	passthrough bool
@@ -49,6 +56,8 @@ func NewReplayer(har *HARLog, opts ...ReplayerOption) *Replayer {
 	r := &Replayer{
 		exactMatches: make(map[string]*HAREntry),
 		pathMatches:  make(map[string]*HAREntry),
+		methodExact:  make(map[string]*HAREntry),
+		methodPath:   make(map[string]*HAREntry),
 		passthrough:  false,
 		verbose:      false,
 	}
@@ -62,15 +71,26 @@ func NewReplayer(har *HARLog, opts ...ReplayerOption) *Replayer {
 		entry := &har.Entries[i]
 		reqURL := entry.Request.URL
 
-		// Store exact match
+		// Store exact match (last wins)
 		r.exactMatches[reqURL] = entry
+
+		// Store method+exact match (last wins per method+URL)
+		methodKey := entry.Request.Method + "|" + reqURL
+		r.methodExact[methodKey] = entry
 
 		// Store path-only match (fallback)
 		if parsed, err := url.Parse(reqURL); err == nil {
 			pathKey := parsed.Scheme + "://" + parsed.Host + parsed.Path
+
 			// Only store first occurrence for path matches
 			if _, exists := r.pathMatches[pathKey]; !exists {
 				r.pathMatches[pathKey] = entry
+			}
+
+			// Store method+path match (first wins per method+path)
+			methodPathKey := entry.Request.Method + "|" + pathKey
+			if _, exists := r.methodPath[methodPathKey]; !exists {
+				r.methodPath[methodPathKey] = entry
 			}
 		}
 	}
@@ -83,11 +103,28 @@ func NewReplayer(har *HARLog, opts ...ReplayerOption) *Replayer {
 func (r *Replayer) Middleware() func(*rod.Hijack) {
 	return func(ctx *rod.Hijack) {
 		reqURL := ctx.Request.URL().String()
+		method := ctx.Request.Method()
 
-		// Try exact match first
-		entry, found := r.exactMatches[reqURL]
+		// 1. Method + exact URL (best match for same-URL-different-method cases)
+		methodKey := method + "|" + reqURL
+		entry, found := r.methodExact[methodKey]
+
+		// 2. Method + path only
 		if !found {
-			// Try path-only match as fallback
+			if parsed, err := url.Parse(reqURL); err == nil {
+				pathKey := parsed.Scheme + "://" + parsed.Host + parsed.Path
+				methodPathKey := method + "|" + pathKey
+				entry, found = r.methodPath[methodPathKey]
+			}
+		}
+
+		// 3. Exact URL (fallback, ignores method)
+		if !found {
+			entry, found = r.exactMatches[reqURL]
+		}
+
+		// 4. Path only (fallback, ignores method)
+		if !found {
 			if parsed, err := url.Parse(reqURL); err == nil {
 				pathKey := parsed.Scheme + "://" + parsed.Host + parsed.Path
 				entry, found = r.pathMatches[pathKey]
@@ -96,7 +133,7 @@ func (r *Replayer) Middleware() func(*rod.Hijack) {
 
 		if !found {
 			if r.verbose {
-				log.Printf("[replayer] no match for: %s", reqURL)
+				log.Printf("[replayer] no match for: %s %s", method, reqURL)
 			}
 
 			if r.passthrough {
@@ -111,7 +148,7 @@ func (r *Replayer) Middleware() func(*rod.Hijack) {
 		}
 
 		if r.verbose {
-			log.Printf("[replayer] matched: %s -> %d", reqURL, entry.Response.Status)
+			log.Printf("[replayer] matched: %s %s -> %d", method, reqURL, entry.Response.Status)
 		}
 
 		r.serveRecordedResponse(ctx, entry)
@@ -244,7 +281,9 @@ func (r *Replayer) serveNotFound(ctx *rod.Hijack, reqURL string) {
 // Stats returns statistics about the replayer's index.
 func (r *Replayer) Stats() map[string]int {
 	return map[string]int{
-		"exact_matches": len(r.exactMatches),
-		"path_matches":  len(r.pathMatches),
+		"exact_matches":  len(r.exactMatches),
+		"path_matches":   len(r.pathMatches),
+		"method_exact":   len(r.methodExact),
+		"method_path":    len(r.methodPath),
 	}
 }
