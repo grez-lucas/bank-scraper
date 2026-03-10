@@ -37,6 +37,23 @@ func skipUnlessMode(t *testing.T, required TestMode) {
 	}
 }
 
+// requireLiveCreds reads BBVA credentials from environment variables.
+// Skips the test if any are missing.
+func requireLiveCreds(t *testing.T) Credentials {
+	t.Helper()
+	company := os.Getenv("BBVA_COMPANY_CODE")
+	user := os.Getenv("BBVA_USER_CODE")
+	pass := os.Getenv("BBVA_PASSWORD")
+	if company == "" || user == "" || pass == "" {
+		t.Skip("Skipping: requires BBVA_COMPANY_CODE, BBVA_USER_CODE, BBVA_PASSWORD env vars")
+	}
+	return Credentials{
+		CompanyCode: company,
+		UserCode:    user,
+		Password:    pass,
+	}
+}
+
 // Integration test - runs only in replay/live mode
 func TestBBVAScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 	skipUnlessMode(t, TestModeReplay)
@@ -394,5 +411,68 @@ func TestClassifySendaErrorCode(t *testing.T) {
 			got := classifySendaErrorCode(tt.code)
 			assert.ErrorIs(t, got, tt.wantErr)
 		})
+	}
+}
+
+func TestBBVAScraper_Live_FullFlow(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+	creds := requireLiveCreds(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	scraper, err := NewBBVAScraper(WithTimeout(60 * time.Second))
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	// --- Login ---
+	session, err := scraper.Login(ctx, creds)
+	require.NoError(t, err, "Login failed")
+	assert.NotEmpty(t, session.ID)
+	assert.Equal(t, bank.BankBBVA, session.BankCode)
+	assert.False(t, session.ExpiresAt.IsZero())
+	t.Logf("Login OK — session=%s expires=%s", session.ID, session.ExpiresAt.Format(time.RFC3339))
+
+	// --- GetBalance ---
+	balances, err := scraper.GetBalance(ctx)
+	require.NoError(t, err, "GetBalance failed")
+	require.NotEmpty(t, balances, "Expected at least one account balance")
+
+	t.Logf("Balances (%d accounts):", len(balances))
+	for i, b := range balances {
+		assert.NotEmpty(t, b.AccountID, "balance[%d] AccountID should not be empty", i)
+		assert.Contains(t, []bank.Currency{bank.CurrencyPEN, bank.CurrencyUSD}, b.Currency,
+			"balance[%d] Currency should be PEN or USD", i)
+		assert.GreaterOrEqual(t, b.AvailableBalance, int64(0),
+			"balance[%d] AvailableBalance should be non-negative", i)
+		assert.WithinDuration(t, time.Now(), b.FetchedAt, 30*time.Second,
+			"balance[%d] FetchedAt should be recent", i)
+		t.Logf("  [%d] %s %s available=%d current=%d account=%s",
+			i, b.Currency, b.AccountID, b.AvailableBalance, b.CurrentBalance, b.AccountID)
+	}
+
+	// --- GetTransactions (using first account) ---
+	accountID := balances[0].AccountID
+	t.Logf("Fetching transactions for account %s...", accountID)
+
+	txns, err := scraper.GetTransactions(ctx, accountID)
+	require.NoError(t, err, "GetTransactions failed")
+	t.Logf("Transactions: %d total", len(txns))
+
+	if len(txns) > 0 {
+		oneYearAgo := time.Now().AddDate(-1, 0, 0)
+		for i, tx := range txns {
+			assert.NotEmpty(t, tx.Description, "tx[%d] Description should not be empty", i)
+			assert.Greater(t, tx.Amount, int64(0), "tx[%d] Amount should be positive", i)
+			assert.Contains(t, []bank.TransactionType{bank.TransactionCredit, bank.TransactionDebit}, tx.Type,
+				"tx[%d] Type should be CREDIT or DEBIT", i)
+			assert.False(t, tx.Date.IsZero(), "tx[%d] Date should not be zero", i)
+			assert.True(t, tx.Date.After(oneYearAgo), "tx[%d] Date should be within 1 year", i)
+		}
+
+		first := txns[0]
+		last := txns[len(txns)-1]
+		t.Logf("  First: %s %s %s %d", first.Date.Format("2006-01-02"), first.Type, first.Description, first.Amount)
+		t.Logf("  Last:  %s %s %s %d", last.Date.Format("2006-01-02"), last.Type, last.Description, last.Amount)
 	}
 }

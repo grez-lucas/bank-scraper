@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -36,6 +38,7 @@ type BBVAScraper struct {
 	router   *rod.HijackRouter  // Request hijacker, kept alive with the page
 	session  *bank.Session
 	timeout  time.Duration
+	headless bool              // Whether to launch browser in headless mode
 	hijacker func(*rod.Hijack) // Optional hijacker for replay testing
 }
 
@@ -54,6 +57,14 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
+// WithHeadless controls whether the browser launches in headless mode.
+// Default is true. Set to false for visual debugging of live sessions.
+func WithHeadless(headless bool) Option {
+	return func(s *BBVAScraper) {
+		s.headless = headless
+	}
+}
+
 // WithHijacker sets a custom hijacker middleware for request interception.
 // This is used for replay testing to serve recorded responses instead of
 // making real network requests.
@@ -64,26 +75,30 @@ func WithHijacker(middleware func(*rod.Hijack)) Option {
 }
 
 func NewBBVAScraper(opts ...Option) (*BBVAScraper, error) {
-	// Launch w/ stealth mode
-	url, err := launcher.New().Headless(true).Launch()
-	if err != nil {
-		return nil, fmt.Errorf("failed to launch browser: %w", err)
-	}
-
-	browser := rod.New().ControlURL(url)
-	if err := browser.Connect(); err != nil {
-		return nil, fmt.Errorf("failed to connect to browser: %w", err)
-	}
-
 	s := &BBVAScraper{
-		browser: browser,
-		timeout: defaultTimeout,
+		timeout:  defaultTimeout,
+		headless: true,
 	}
 
 	for _, opt := range opts {
 		opt(s)
 	}
 
+	// Launch with stealth flags to avoid bot detection
+	url, err := launcher.New().
+		Set("disable-blink-features", "AutomationControlled").
+		Headless(s.headless).
+		Launch()
+	if err != nil {
+		return nil, fmt.Errorf("failed to launch browser: %w", err)
+	}
+
+	bro := rod.New().ControlURL(url)
+	if err := bro.Connect(); err != nil {
+		return nil, fmt.Errorf("failed to connect to browser: %w", err)
+	}
+
+	s.browser = bro
 	return s, nil
 }
 
@@ -139,8 +154,18 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	}
 
 	// 1. Fill credentials (form is on main page, not in iframe)
-	if err := fillLoginForm(page, creds); err != nil {
+	// Use human-like typing in live mode to avoid bot detection
+	typeFn := browser.TypeFast
+	if s.hijacker == nil {
+		typeFn = browser.TypeHuman
+	}
+	if err := fillLoginForm(page, creds, typeFn); err != nil {
 		return nil, err
+	}
+
+	// Small random delay before clicking to appear more human-like
+	if s.hijacker == nil {
+		time.Sleep(time.Duration(200+rand.Intn(300)) * time.Millisecond)
 	}
 
 	// 2. Click login (#enviarSenda → Senda flow via postMessage to iframe)
@@ -191,11 +216,21 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 		}
 
 	case loginTimeout:
+		// Capture screenshot and URL for debugging
+		screenshot, _ := page.Screenshot(true, nil)
+		if len(screenshot) > 0 {
+			_ = os.WriteFile("/tmp/bbva-login-timeout.png", screenshot, 0644)
+		}
+		info, _ := page.Info()
+		pageURL := ""
+		if info != nil {
+			pageURL = info.URL
+		}
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrUnknown,
-			Details:   "login timed out waiting for redirect or error",
+			Details:   fmt.Sprintf("login timed out waiting for redirect or error (url=%s, screenshot=/tmp/bbva-login-timeout.png)", pageURL),
 		}
 	}
 
@@ -545,12 +580,12 @@ func dismissAnnouncementModal(page *rod.Page) {
 	time.Sleep(500 * time.Millisecond)
 }
 
-func fillLoginForm(page *rod.Page, creds Credentials) error {
+func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, string) error) error {
 	companyInput, err := page.Element(SelectorCompanyInput)
 	if err != nil {
 		return fmt.Errorf("company input not found: %w", err)
 	}
-	if err := browser.TypeFast(companyInput, creds.CompanyCode); err != nil {
+	if err := typeFn(companyInput, creds.CompanyCode); err != nil {
 		return fmt.Errorf("failed to type company code: %w", err)
 	}
 
@@ -558,7 +593,7 @@ func fillLoginForm(page *rod.Page, creds Credentials) error {
 	if err != nil {
 		return fmt.Errorf("user input not found: %w", err)
 	}
-	if err := browser.TypeFast(userInput, creds.UserCode); err != nil {
+	if err := typeFn(userInput, creds.UserCode); err != nil {
 		return fmt.Errorf("failed to type user code: %w", err)
 	}
 
@@ -566,7 +601,7 @@ func fillLoginForm(page *rod.Page, creds Credentials) error {
 	if err != nil {
 		return fmt.Errorf("password input not found: %w", err)
 	}
-	if err := browser.TypeFast(passwordInput, creds.Password); err != nil {
+	if err := typeFn(passwordInput, creds.Password); err != nil {
 		return fmt.Errorf("failed to type password: %w", err)
 	}
 	return nil
