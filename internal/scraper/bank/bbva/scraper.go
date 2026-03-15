@@ -34,7 +34,8 @@ const (
 
 	bbvaSessionTimeout = 10 * time.Minute
 
-	targetTransactionCount = 200
+	minTransactionCount = 50
+	maxTransactionCount = 250
 )
 
 type BBVAScraper struct {
@@ -435,7 +436,14 @@ func transactionsURL(accountID string) string {
 	return portalURL + "#!/bbva-btge-accounts-solution/account/" + accountID + "/movements"
 }
 
-func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]bank.Transaction, error) {
+func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, count int) ([]bank.Transaction, error) {
+	if count < minTransactionCount {
+		count = minTransactionCount
+	}
+	if count > maxTransactionCount {
+		count = maxTransactionCount
+	}
+
 	if s.page == nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
@@ -549,8 +557,8 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]
 		s.logger.Info("pagination: checking rows",
 			slog.Int("iteration", i),
 			slog.Int("rowCount", rowCount),
-			slog.Int("target", targetTransactionCount))
-		if rowCount >= targetTransactionCount {
+			slog.Int("target", count))
+		if rowCount >= count {
 			s.logger.Info("pagination: target reached, stopping")
 			break
 		}

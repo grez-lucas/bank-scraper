@@ -319,7 +319,7 @@ func TestBBVAScraper_GetTransactions_Replay_Integration(t *testing.T) {
 	require.NotNil(t, session)
 
 	// Get transactions
-	txns, err := scraper.GetTransactions(ctx, "PE001101190100064607")
+	txns, err := scraper.GetTransactions(ctx, "PE001101190100064607", 50)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, txns)
@@ -456,7 +456,7 @@ func TestBBVAScraper_Live_FullFlow(t *testing.T) {
 		accountID := acc.AccountID
 		t.Logf("Fetching transactions for account %s...", accountID)
 
-		txns, err := scraper.GetTransactions(ctx, accountID)
+		txns, err := scraper.GetTransactions(ctx, accountID, 200)
 		require.NoError(t, err, "GetTransactions failed")
 		t.Logf("Transactions: %d total", len(txns))
 
