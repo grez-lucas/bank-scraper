@@ -418,7 +418,7 @@ func TestBBVAScraper_Live_FullFlow(t *testing.T) {
 	skipUnlessMode(t, TestModeLive)
 	creds := requireLiveCreds(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	scraper, err := NewBBVAScraper(WithTimeout(60 * time.Second))
@@ -451,28 +451,30 @@ func TestBBVAScraper_Live_FullFlow(t *testing.T) {
 			i, b.Currency, b.AccountID, b.AvailableBalance, b.CurrentBalance, b.AccountID)
 	}
 
-	// --- GetTransactions (using first account) ---
-	accountID := balances[0].AccountID
-	t.Logf("Fetching transactions for account %s...", accountID)
+	// --- GetTransactions (using accounts) ---
+	for _, acc := range balances {
+		accountID := acc.AccountID
+		t.Logf("Fetching transactions for account %s...", accountID)
 
-	txns, err := scraper.GetTransactions(ctx, accountID)
-	require.NoError(t, err, "GetTransactions failed")
-	t.Logf("Transactions: %d total", len(txns))
+		txns, err := scraper.GetTransactions(ctx, accountID)
+		require.NoError(t, err, "GetTransactions failed")
+		t.Logf("Transactions: %d total", len(txns))
 
-	if len(txns) > 0 {
-		oneYearAgo := time.Now().AddDate(-1, 0, 0)
-		for i, tx := range txns {
-			assert.NotEmpty(t, tx.Description, "tx[%d] Description should not be empty", i)
-			assert.Greater(t, tx.Amount, int64(0), "tx[%d] Amount should be positive", i)
-			assert.Contains(t, []bank.TransactionType{bank.TransactionCredit, bank.TransactionDebit}, tx.Type,
-				"tx[%d] Type should be CREDIT or DEBIT", i)
-			assert.False(t, tx.Date.IsZero(), "tx[%d] Date should not be zero", i)
-			assert.True(t, tx.Date.After(oneYearAgo), "tx[%d] Date should be within 1 year", i)
+		if len(txns) > 0 {
+			oneYearAgo := time.Now().AddDate(-1, 0, 0)
+			for i, tx := range txns {
+				assert.NotEmpty(t, tx.Description, "tx[%d] Description should not be empty", i)
+				assert.Greater(t, tx.Amount, int64(0), "tx[%d] Amount should be positive", i)
+				assert.Contains(t, []bank.TransactionType{bank.TransactionCredit, bank.TransactionDebit}, tx.Type,
+					"tx[%d] Type should be CREDIT or DEBIT", i)
+				assert.False(t, tx.Date.IsZero(), "tx[%d] Date should not be zero", i)
+				assert.True(t, tx.Date.After(oneYearAgo), "tx[%d] Date should be within 1 year", i)
+			}
+
+			first := txns[0]
+			last := txns[len(txns)-1]
+			t.Logf("  First: %s %s %s %d", first.Date.Format("2006-01-02"), first.Type, first.Description, first.Amount)
+			t.Logf("  Last:  %s %s %s %d", last.Date.Format("2006-01-02"), last.Type, last.Description, last.Amount)
 		}
-
-		first := txns[0]
-		last := txns[len(txns)-1]
-		t.Logf("  First: %s %s %s %d", first.Date.Format("2006-01-02"), first.Type, first.Description, first.Amount)
-		t.Logf("  Last:  %s %s %s %d", last.Date.Format("2006-01-02"), last.Type, last.Description, last.Amount)
 	}
 }

@@ -444,20 +444,75 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]
 		}
 	}
 
-	// Navigation phase
+	// Navigation phase — mimic real user flow:
+	// Direct URL navigation leaves the SPA's selectedAccount store empty → "undefined".
+	// Instead: accounts page → click account card → click "Ver todos los movimientos".
 	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
 	defer navCancel()
-	if err := navigateTo(navCtx, s.page, transactionsURL(accountID)); err != nil {
+
+	// Step 1: Navigate to accounts page (reload clears prior FlattenShadowDOM mutations)
+	if err := navigateTo(navCtx, s.page, accountsURL); err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrBankUnavailable,
-			Details:   fmt.Sprintf("navigate to transactions: %v", err),
+			Details:   fmt.Sprintf("navigate to accounts: %v", err),
 		}
 	}
 
+	// Step 2: Wait for accounts to render, then click the target card
+	if !waitForAccountsReady(ctx, s.page, s.timeout) {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrUnknown,
+			Details:   "timed out waiting for accounts page to render",
+		}
+	}
+
+	// Click the card matching this accountID (sets SPA selectedAccount state)
+	cardSelector := fmt.Sprintf(`%s#%s`, SelectorAccountCard, accountID)
+	if !browser.DeepQueryClick(s.page.Context(navCtx), cardSelector) {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrAccountNotFound,
+			Details:   fmt.Sprintf("account card not found: %s", cardSelector),
+		}
+	}
+
+	// Wait for the "Últimos movimientos" section to update after card click
+	if err := s.page.Context(navCtx).WaitDOMStable(time.Second, 0); err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("DOM unstable after card click: %v", err),
+		}
+	}
+
+	// Step 3: Click "Ver todos los movimientos" to go to full transactions page
+	if !clickViewAllMovements(navCtx, s.page) {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrUnknown,
+			Details:   "could not find or click 'Ver todos los movimientos' link",
+		}
+	}
+
+	// Wait for SPA hash navigation to transactions page
+	if err := s.page.Context(navCtx).WaitDOMStable(time.Second, 0); err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("DOM unstable after view-all click: %v", err),
+		}
+	}
+	navCancel() // Navigation phase complete
+
 	// Wait for Web Components to finish rendering transaction rows.
-	// Uses its own derived context — independent of the navigation deadline.
 	if !waitForTransactionsReady(ctx, s.page, s.timeout) {
 		debugDir := filepath.Join(os.TempDir(), "bbva-debug")
 		_ = os.MkdirAll(debugDir, 0o755)
@@ -753,40 +808,22 @@ func (s *BBVAScraper) waitForDashboard(ctx context.Context, page *rod.Page) bool
 func navigateTo(ctx context.Context, page *rod.Page, url string) error {
 	p := page.Context(ctx)
 
-	// Save sessionStorage before about:blank — the detour destroys it,
-	// but the SPA likely needs auth tokens stored there.
-	ssResult, ssErr := p.Eval(`() => JSON.stringify(sessionStorage)`)
-	var sessionData string
-	if ssErr == nil {
-		sessionData = ssResult.Value.Str()
-	}
-
-	// Force full page reload by navigating away first.
-	// This ensures FlattenShadowDOM mutations from prior operations are cleared.
-	if err := p.Navigate("about:blank"); err != nil {
-		return fmt.Errorf("navigate to blank: %w", err)
-	}
-	if err := p.WaitLoad(); err != nil {
-		return fmt.Errorf("wait blank load: %w", err)
-	}
-
+	// Set the target URL. If it's a hash-only change from the current URL,
+	// Chrome won't reload — that's fine, Reload() below forces it.
 	if err := p.Navigate(url); err != nil {
 		return fmt.Errorf("navigate to %s: %w", url, err)
+	}
+
+	// Force full page reload to clear FlattenShadowDOM mutations.
+	// Unlike about:blank, this preserves sessionStorage and the URL,
+	// so the SPA bootstraps fresh at the correct hash route with all
+	// in-memory state (like selectedAccount) initialized from the URL.
+	if err := p.Reload(); err != nil {
+		return fmt.Errorf("reload %s: %w", url, err)
 	}
 	if err := p.WaitLoad(); err != nil {
 		return fmt.Errorf("wait load %s: %w", url, err)
 	}
-
-	// Restore sessionStorage (best-effort, errors ignored).
-	if sessionData != "" && sessionData != "{}" {
-		_, _ = p.Eval(`(data) => {
-			const entries = JSON.parse(data);
-			for (const [k, v] of Object.entries(entries)) {
-				sessionStorage.setItem(k, v);
-			}
-		}`, sessionData)
-	}
-
 	if err := p.WaitDOMStable(time.Second, 0); err != nil {
 		return fmt.Errorf("wait DOM stable %s: %w", url, err)
 	}
@@ -821,6 +858,27 @@ func dismissAnnouncementModal(ctx context.Context, page *rod.Page) {
 	case <-time.After(500 * time.Millisecond):
 	case <-ctx.Done():
 	}
+}
+
+// clickViewAllMovements finds and clicks the "Ver todos los movimientos" link
+// on the accounts page. The link is inside shadow DOM, so we use deepQuery to
+// find the container, then querySelector within it for the link element.
+func clickViewAllMovements(ctx context.Context, page *rod.Page) bool {
+	js := fmt.Sprintf(`() => {
+		%s
+		const container = deepQuery(document, '%s');
+		if (!container) return false;
+		const link = container.querySelector('bbva-type-link');
+		if (!link) return false;
+		link.click();
+		return true;
+	}`, browser.DeepQueryJS, SelectorViewAllMovements)
+
+	result, err := page.Context(ctx).Eval(js)
+	if err != nil {
+		return false
+	}
+	return result.Value.Bool()
 }
 
 // waitForTransactionsReady polls until the transactions table has rendered
