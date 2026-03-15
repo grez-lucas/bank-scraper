@@ -26,8 +26,7 @@ const (
 	PortalPath = "/nextgenempresas/portal/"
 
 	// Announcement modal (post-login news popup)
-	SelectorAnnouncementModal    = `bbva-btge-microfrontend-modal[opened]`
-	SelectorAnnouncementCloseBtn = `bbva-btge-microfrontend-modal[opened] button.close-btn`
+	SelectorAnnouncementModal = `bbva-btge-microfrontend-modal[opened]`
 
 	// Dashboard Page
 	SelectorDashboard = "bbva-btge-dashboard-solution-home-page#cells-template-bbva-btge-dashboard-solution-home"

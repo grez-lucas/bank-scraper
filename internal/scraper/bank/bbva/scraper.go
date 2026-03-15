@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,21 +27,24 @@ const (
 	portalURL   = baseURL + "/nextgenempresas/portal/index.html"
 	accountsURL = baseURL + "/nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution"
 
-	maxPaginationClicks = 20 // Safety limit for "Ver más" pagination loop
+	maxPaginationClicks = 2 // Safety limit for "Ver más" pagination loop
 
 	defaultTimeout = 30 * time.Second
 
 	bbvaSessionTimeout = 10 * time.Minute
+
+	targetTransactionCount = 200
 )
 
 type BBVAScraper struct {
 	browser  *rod.Browser
-	page     *rod.Page          // Authenticated page, kept alive between operations
-	router   *rod.HijackRouter  // Request hijacker, kept alive with the page
+	page     *rod.Page         // Authenticated page, kept alive between operations
+	router   *rod.HijackRouter // Request hijacker, kept alive with the page
 	session  *bank.Session
 	timeout  time.Duration
 	headless bool              // Whether to launch browser in headless mode
 	hijacker func(*rod.Hijack) // Optional hijacker for replay testing
+	logger   *slog.Logger
 }
 
 type Credentials struct {
@@ -74,10 +79,17 @@ func WithHijacker(middleware func(*rod.Hijack)) Option {
 	}
 }
 
+func WithLogger(l *slog.Logger) Option {
+	return func(s *BBVAScraper) {
+		s.logger = l
+	}
+}
+
 func NewBBVAScraper(opts ...Option) (*BBVAScraper, error) {
 	s := &BBVAScraper{
 		timeout:  defaultTimeout,
 		headless: true,
+		logger:   slog.Default(),
 	}
 
 	for _, opt := range opts {
@@ -130,26 +142,28 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 		}
 	}()
 
-	// Set up request hijacking BEFORE applying timeout.
+	// Set up request hijacking on the base page (no timeout context).
 	// The router's event context derives from the page's context at creation time.
-	// If we set it up after Timeout(), CancelTimeout() would kill the router's context.
 	router := page.HijackRequests()
 
 	if s.hijacker != nil {
 		router.MustAdd("*", s.hijacker)
 	} else {
-		router.MustAdd("*", func(ctx *rod.Hijack) {
-			ctx.LoadResponse(http.DefaultClient, true)
+		router.MustAdd("*", func(h *rod.Hijack) {
+			h.LoadResponse(http.DefaultClient, true)
 		})
 	}
 
 	go router.Run()
 	s.router = router
 
-	page = page.Timeout(s.timeout)
+	// Navigation phase: load page + fill form + click login
+	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
+	defer navCancel()
+	p := page.Context(navCtx)
 
 	// Wait for the login form
-	if err := page.WaitLoad(); err != nil {
+	if err := p.WaitLoad(); err != nil {
 		return nil, fmt.Errorf("login page load failed: %w", err)
 	}
 
@@ -159,7 +173,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	if s.hijacker == nil {
 		typeFn = browser.TypeHuman
 	}
-	if err := fillLoginForm(page, creds, typeFn); err != nil {
+	if err := fillLoginForm(p, creds, typeFn); err != nil {
 		return nil, err
 	}
 
@@ -169,7 +183,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	}
 
 	// 2. Click login (#enviarSenda → Senda flow via postMessage to iframe)
-	loginBtn, err := page.Element(SelectorLoginButton)
+	loginBtn, err := p.Element(SelectorLoginButton)
 	if err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
@@ -186,17 +200,16 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 			Details:   fmt.Sprintf("failed to click login: %v", err),
 		}
 	}
+	navCancel() // Navigation phase complete
 
 	// 3. Wait for Senda outcome: portal redirect (success) or error span (failure)
-	// Cancel the page-level timeout so waitForLoginOutcome can use its own deadline.
-	// The page stays timeout-free; each method (GetBalance, etc.) sets a fresh timeout.
-	page = page.CancelTimeout()
-	result := s.waitForLoginOutcome(page)
+	// Each wait function derives its own context from ctx.
+	result := s.waitForLoginOutcome(ctx, page)
 	switch result.outcome {
 	case loginSuccess:
 		if s.hijacker == nil {
 			// Live mode: wait for the SPA to set the dashboard route hash
-			if !s.waitForDashboard(page) {
+			if !s.waitForDashboard(ctx, page) {
 				return nil, &bank.ScraperError{
 					BankCode:  bank.BankBBVA,
 					Operation: "Login",
@@ -204,7 +217,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 					Details:   "login completed but dashboard did not load",
 				}
 			}
-			dismissAnnouncementModal(page)
+			dismissAnnouncementModal(ctx, page)
 		}
 
 	case loginError:
@@ -217,9 +230,12 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 
 	case loginTimeout:
 		// Capture screenshot and URL for debugging
+		debugDir := filepath.Join(os.TempDir(), "bbva-debug")
+		_ = os.MkdirAll(debugDir, 0o755)
+		screenshotPath := filepath.Join(debugDir, "login-timeout.png")
 		screenshot, _ := page.Screenshot(true, nil)
 		if len(screenshot) > 0 {
-			_ = os.WriteFile("/tmp/bbva-login-timeout.png", screenshot, 0644)
+			_ = os.WriteFile(screenshotPath, screenshot, 0o644)
 		}
 		info, _ := page.Info()
 		pageURL := ""
@@ -230,7 +246,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 			BankCode:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrUnknown,
-			Details:   fmt.Sprintf("login timed out waiting for redirect or error (url=%s, screenshot=/tmp/bbva-login-timeout.png)", pageURL),
+			Details:   fmt.Sprintf("login timed out waiting for redirect or error (url=%s, screenshot=%s)", pageURL, screenshotPath),
 		}
 	}
 
@@ -277,8 +293,10 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 		}
 	}
 
-	page := s.page.Timeout(s.timeout)
-	if err := navigateTo(page, accountsURL); err != nil {
+	// Navigation phase
+	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
+	defer navCancel()
+	if err := navigateTo(navCtx, s.page, accountsURL); err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetBalance",
@@ -287,7 +305,104 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 		}
 	}
 
-	html, _, _, err := browser.FlattenShadowDOM(page)
+	// Wait for Web Components to finish rendering account data.
+	// Uses its own derived context — independent of the navigation deadline.
+	if !waitForAccountsReady(ctx, s.page, s.timeout) {
+		debugCtx, debugCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer debugCancel()
+		dp := s.page.Context(debugCtx)
+
+		debugDir := filepath.Join(os.TempDir(), "bbva-debug")
+		_ = os.MkdirAll(debugDir, 0o755)
+
+		screenshot, err := dp.Screenshot(true, nil)
+		if err == nil && len(screenshot) > 0 {
+			_ = os.WriteFile(filepath.Join(debugDir, "accounts-timeout.png"), screenshot, 0o644)
+		}
+		html, _ := dp.HTML()
+		if len(html) > 0 {
+			_ = os.WriteFile(filepath.Join(debugDir, "accounts-timeout.html"), []byte(html), 0o644)
+		}
+
+		// Diagnostic: trace DOM structure to find where deepQuery loses the path.
+		// Uses the same walk as flattenShadowDOMJS (which works) to catalog all
+		// shadow hosts and their children, plus tries deepQuery.
+		diagJS := fmt.Sprintf(`() => {
+			%s
+			const d = {};
+
+			// 1. deepQuery results
+			d.dqAccountRow = deepQuery(document, '%s') !== null;
+			d.dqAnyTR = deepQuery(document, 'tr') !== null;
+			d.dqAnyCard = deepQuery(document, '%s') !== null;
+			d.dqModal = deepQuery(document, '%s') !== null;
+
+			// 2. Walk using flattenShadowDOM's approach (childNodes + shadowRoot)
+			// and collect all tag names found, plus shadow host paths.
+			const tags = {};
+			const shadowHosts = [];
+			function walk2(node, path, depth) {
+				if (depth > 50) return;
+				const tag = node.tagName ? node.tagName.toLowerCase() : '#text';
+				tags[tag] = (tags[tag] || 0) + 1;
+
+				if (node.shadowRoot) {
+					shadowHosts.push(path + '/' + tag + '#shadow');
+					// Light DOM children first (like flattenShadowDOM)
+					for (const c of Array.from(node.childNodes)) {
+						if (c.nodeType === 1) walk2(c, path + '/' + tag + '.light', depth+1);
+					}
+					// Shadow DOM children
+					for (const c of Array.from(node.shadowRoot.childNodes)) {
+						if (c.nodeType === 1) walk2(c, path + '/' + tag + '.shadow', depth+1);
+					}
+				} else {
+					for (const c of Array.from(node.childNodes)) {
+						if (c.nodeType === 1) walk2(c, path + '/' + tag, depth+1);
+					}
+				}
+			}
+			walk2(document.documentElement, '', 0);
+			d.shadowHostCount = shadowHosts.length;
+			d.tagCounts = tags;
+
+			// 3. Check specific elements we expect
+			d.hasTR = (tags['tr'] || 0) > 0;
+			d.hasTable = (tags['table'] || 0) > 0;
+			d.hasCard = (tags['bbva-btge-card-product-select'] || 0) > 0;
+			d.hasAccountsTable = (tags['bbva-btge-accounts-solution-table'] || 0) > 0;
+
+			// 4. Dump first 20 shadow hosts to see the nesting
+			d.shadowHostPaths = shadowHosts.slice(0, 20);
+
+			return JSON.stringify(d);
+		}`, browser.DeepQueryJS, SelectorAccountRow, SelectorAccountCard, SelectorAnnouncementModal)
+		diagResult, diagErr := dp.Eval(diagJS)
+		diagJSON := ""
+		if diagErr == nil {
+			diagJSON = diagResult.Value.Str()
+		} else {
+			diagJSON = fmt.Sprintf("eval error: %v", diagErr)
+		}
+		_ = os.WriteFile(filepath.Join(debugDir, "accounts-diag.json"), []byte(diagJSON), 0o644)
+
+		info, _ := dp.Info()
+		pageURL := ""
+		if info != nil {
+			pageURL = info.URL
+		}
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetBalance",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("timed out waiting for accounts to render (url=%s, debug=%s, diag=%s)", pageURL, debugDir, diagJSON),
+		}
+	}
+
+	// Flatten + parse phase
+	flattenCtx, flattenCancel := context.WithTimeout(ctx, s.timeout)
+	defer flattenCancel()
+	html, _, _, err := browser.FlattenShadowDOM(s.page.Context(flattenCtx))
 	if err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
@@ -299,11 +414,15 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 
 	balances, err := ParseAccountBalances(html)
 	if err != nil {
+		debugDir := filepath.Join(os.TempDir(), "bbva-debug")
+		_ = os.MkdirAll(debugDir, 0o755)
+		debugPath := filepath.Join(debugDir, "balances-debug.html")
+		_ = os.WriteFile(debugPath, []byte(html), 0o644)
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     err,
-			Details:   "parse account balances failed",
+			Details:   fmt.Sprintf("parse account balances failed (debug HTML dumped to %s)", debugPath),
 		}
 	}
 
@@ -325,8 +444,10 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]
 		}
 	}
 
-	page := s.page.Timeout(s.timeout)
-	if err := navigateTo(page, transactionsURL(accountID)); err != nil {
+	// Navigation phase
+	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
+	defer navCancel()
+	if err := navigateTo(navCtx, s.page, transactionsURL(accountID)); err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
@@ -335,43 +456,97 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]
 		}
 	}
 
+	// Wait for Web Components to finish rendering transaction rows.
+	// Uses its own derived context — independent of the navigation deadline.
+	if !waitForTransactionsReady(ctx, s.page, s.timeout) {
+		debugDir := filepath.Join(os.TempDir(), "bbva-debug")
+		_ = os.MkdirAll(debugDir, 0o755)
+		screenshotPath := filepath.Join(debugDir, "transactions-timeout.png")
+		screenshot, _ := s.page.Screenshot(true, nil)
+		if len(screenshot) > 0 {
+			_ = os.WriteFile(screenshotPath, screenshot, 0o644)
+		}
+		info, _ := s.page.Info()
+		pageURL := ""
+		if info != nil {
+			pageURL = info.URL
+		}
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("timed out waiting for transactions table to render (url=%s, screenshot=%s)", pageURL, screenshotPath),
+		}
+	}
+
+	// TODO: The last thing we do should be flattening. First pagination loop, then flatten.
+	// Flatten + parse + pagination loop
+	loopCtx, loopCancel := context.WithTimeout(ctx, s.timeout)
+	defer loopCancel()
+	page := s.page.Context(loopCtx)
 	var allTxns []bank.Transaction
-	for i := 0; ; i++ {
-		html, _, _, err := browser.FlattenShadowDOM(page)
-		if err != nil {
+	for i := 0; i < maxPaginationClicks; i++ {
+		if loopCtx.Err() != nil {
 			return nil, &bank.ScraperError{
 				BankCode:  bank.BankBBVA,
 				Operation: "GetTransactions",
 				Cause:     bank.ErrUnknown,
-				Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
+				Details:   "context cancelled during pagination",
 			}
 		}
 
-		txns, err := ParseTransactions(html)
-		if err != nil {
-			return nil, &bank.ScraperError{
-				BankCode:  bank.BankBBVA,
-				Operation: "GetTransactions",
-				Cause:     err,
-				Details:   "parse transactions failed",
-			}
-		}
-
-		allTxns = txns
-
-		if !HasMoreTransactions(html) || i >= maxPaginationClicks {
+		// Lightweight check - count row elements without flattening
+		rowCount := browser.DeepQueryCountAll(page, SelectorTransactionRow)
+		if rowCount >= targetTransactionCount {
 			break
 		}
 
-		// Click "Ver más" and wait for DOM to update with new rows
-		loadMoreBtn, err := page.Element(SelectorLoadMoreButton)
-		if err != nil {
-			break // Button not found in live DOM — stop paginating
+		if browser.DeepQueryExists(page, SelectorLoadMoreButton) {
+			break // No button - all transactions loadded
 		}
-		if err := loadMoreBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		fmt.Printf("DEBUG: iteration %d - found loadMoreBtn\n", i)
+
+		clicked, _ := page.Eval(fmt.Sprintf(`() => {
+			%s
+			const btn = deepQuery(document, '%s');
+			if (!btn) return false;
+			btn.click();
+			return true;
+			}`, browser.DeepQueryJS, SelectorLoadMoreButton))
+		if !clicked.Value.Bool() {
 			break
 		}
-		page.MustWaitDOMStable()
+		if err := page.WaitDOMStable(time.Second*5, 0); err != nil {
+			break
+		}
+
+	}
+	loopCancel()
+
+	flattenCtx, flattenCancel := context.WithTimeout(ctx, s.timeout)
+	defer flattenCancel()
+	html, _, _, err := browser.FlattenShadowDOM(s.page.Context(flattenCtx))
+	if err != nil {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
+		}
+	}
+
+	allTxns, err = ParseTransactions(html)
+	if err != nil {
+		debugDir := filepath.Join(os.TempDir(), "bbva-debug")
+		_ = os.MkdirAll(debugDir, 0o755)
+		debugPath := filepath.Join(debugDir, "transactions-debug.html")
+		_ = os.WriteFile(debugPath, []byte(html), 0o644)
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     err,
+			Details:   fmt.Sprintf("parse transactions failed (debug HTML dumped to %s)", debugPath),
+		}
 	}
 
 	return allTxns, nil
@@ -398,23 +573,27 @@ type loginResult struct {
 //
 // In replay mode (s.hijacker != nil), uses a direct Senda API probe
 // to bypass the broken iframe postMessage chain.
-func (s *BBVAScraper) waitForLoginOutcome(page *rod.Page) loginResult {
+func (s *BBVAScraper) waitForLoginOutcome(ctx context.Context, page *rod.Page) loginResult {
 	// In replay mode, the iframe postMessage chain is broken — use direct API probe
 	if s.hijacker != nil {
-		return s.probeSendaAPI(page)
+		return s.probeSendaAPI(ctx, page)
 	}
 
 	// Live mode: poll DOM for redirect or error
-	deadline := time.Now().Add(s.timeout)
-	for time.Now().Before(deadline) {
+	waitCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	p := page.Context(waitCtx)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
 		// Success: URL changed to portal
-		info, err := page.Timeout(2 * time.Second).Info()
+		info, err := p.Info()
 		if err == nil && strings.Contains(info.URL, PortalPath) {
 			return loginResult{outcome: loginSuccess}
 		}
 
 		// Error: span#error-message visible with text
-		result, err := page.Timeout(2 * time.Second).Eval(`() => {
+		result, err := p.Eval(`() => {
 			const el = document.getElementById('error-message');
 			if (!el || window.getComputedStyle(el).display === 'none') return '';
 			return el.textContent.trim();
@@ -425,9 +604,12 @@ func (s *BBVAScraper) waitForLoginOutcome(page *rod.Page) loginResult {
 			}
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		select {
+		case <-waitCtx.Done():
+			return loginResult{outcome: loginTimeout}
+		case <-ticker.C:
+		}
 	}
-	return loginResult{outcome: loginTimeout}
 }
 
 // probeResponse captures the HTTP status and body from the hijacker.
@@ -440,7 +622,10 @@ type probeResponse struct {
 // navigates to the grantingTicket endpoint. The hijacker intercepts the
 // navigation request and serves the HAR response. This avoids fetch() from
 // JS context (which the browser blocks for cross-origin on hijacked pages).
-func (s *BBVAScraper) probeSendaAPI(page *rod.Page) loginResult {
+func (s *BBVAScraper) probeSendaAPI(ctx context.Context, page *rod.Page) loginResult {
+	probeCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+
 	probePage, err := s.browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
 		return loginResult{outcome: loginTimeout}
@@ -450,10 +635,10 @@ func (s *BBVAScraper) probeSendaAPI(page *rod.Page) loginResult {
 	// Capture grantingTicket response from hijacker
 	ch := make(chan probeResponse, 1)
 	probeRouter := probePage.HijackRequests()
-	probeRouter.MustAdd("*", func(ctx *rod.Hijack) {
-		s.hijacker(ctx)
-		if strings.Contains(ctx.Request.URL().String(), "grantingTicket") {
-			payload := ctx.Response.Payload()
+	probeRouter.MustAdd("*", func(h *rod.Hijack) {
+		s.hijacker(h)
+		if strings.Contains(h.Request.URL().String(), "grantingTicket") {
+			payload := h.Response.Payload()
 			ch <- probeResponse{
 				status: payload.ResponseCode,
 				body:   string(payload.Body),
@@ -472,7 +657,7 @@ func (s *BBVAScraper) probeSendaAPI(page *rod.Page) loginResult {
 	select {
 	case resp := <-ch:
 		return classifyProbeResponse(resp)
-	case <-time.After(s.timeout):
+	case <-probeCtx.Done():
 		return loginResult{outcome: loginTimeout}
 	}
 }
@@ -538,46 +723,163 @@ func classifySendaErrorCode(code string) error {
 // waitForDashboard polls the page URL for the dashboard route hash.
 // The 2026 portal SPA sets this after the "Validando tus credenciales"
 // splash transitions to the dashboard.
-func (s *BBVAScraper) waitForDashboard(page *rod.Page) bool {
-	deadline := time.Now().Add(s.timeout)
-	for time.Now().Before(deadline) {
-		info, err := page.Info()
+func (s *BBVAScraper) waitForDashboard(ctx context.Context, page *rod.Page) bool {
+	waitCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	p := page.Context(waitCtx)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		info, err := p.Info()
 		if err == nil && strings.Contains(info.URL, DashboardRoute) {
 			return true
 		}
-		time.Sleep(500 * time.Millisecond)
+		select {
+		case <-waitCtx.Done():
+			return false
+		case <-ticker.C:
+		}
 	}
-	return false
 }
 
 // navigateTo navigates to the given URL, waits for the page and DOM to
 // stabilize, then dismisses the announcement modal if present.
-// Use this for all post-login page navigation.
-func navigateTo(page *rod.Page, url string) error {
-	if err := page.Navigate(url); err != nil {
+//
+// BBVA's portal is a hash-routed SPA. Hash-only URL changes don't trigger
+// a full page reload — Chrome treats them as same-page navigation. Since
+// FlattenShadowDOM mutates the live DOM (inlining shadow content), subsequent
+// hash navigations would operate on a corrupted DOM. To ensure a clean state,
+// we navigate to about:blank first, forcing a full reload of the SPA.
+func navigateTo(ctx context.Context, page *rod.Page, url string) error {
+	p := page.Context(ctx)
+
+	// Save sessionStorage before about:blank — the detour destroys it,
+	// but the SPA likely needs auth tokens stored there.
+	ssResult, ssErr := p.Eval(`() => JSON.stringify(sessionStorage)`)
+	var sessionData string
+	if ssErr == nil {
+		sessionData = ssResult.Value.Str()
+	}
+
+	// Force full page reload by navigating away first.
+	// This ensures FlattenShadowDOM mutations from prior operations are cleared.
+	if err := p.Navigate("about:blank"); err != nil {
+		return fmt.Errorf("navigate to blank: %w", err)
+	}
+	if err := p.WaitLoad(); err != nil {
+		return fmt.Errorf("wait blank load: %w", err)
+	}
+
+	if err := p.Navigate(url); err != nil {
 		return fmt.Errorf("navigate to %s: %w", url, err)
 	}
-	if err := page.WaitLoad(); err != nil {
+	if err := p.WaitLoad(); err != nil {
 		return fmt.Errorf("wait load %s: %w", url, err)
 	}
-	page.MustWaitDOMStable()
-	dismissAnnouncementModal(page)
+
+	// Restore sessionStorage (best-effort, errors ignored).
+	if sessionData != "" && sessionData != "{}" {
+		_, _ = p.Eval(`(data) => {
+			const entries = JSON.parse(data);
+			for (const [k, v] of Object.entries(entries)) {
+				sessionStorage.setItem(k, v);
+			}
+		}`, sessionData)
+	}
+
+	if err := p.WaitDOMStable(time.Second, 0); err != nil {
+		return fmt.Errorf("wait DOM stable %s: %w", url, err)
+	}
+	dismissAnnouncementModal(ctx, page)
 	return nil
 }
 
 // dismissAnnouncementModal dismisses the news/announcement popup if present.
 // Non-blocking: if the modal isn't found or click fails, navigation continues.
-func dismissAnnouncementModal(page *rod.Page) {
-	el, err := page.Timeout(3 * time.Second).Element(SelectorAnnouncementCloseBtn)
-	if err != nil {
-		return // Modal not present
+//
+// The modal's buttons live deep inside nested shadow roots (e.g.,
+// modal → shadowRoot → bbva-button → shadowRoot → <button>). Neither
+// standard querySelector nor Element.matches() with descendant selectors
+// can cross shadow boundaries. We use deepQuery rooted at the modal element
+// to walk its entire shadow tree and find any clickable button.
+func dismissAnnouncementModal(ctx context.Context, page *rod.Page) {
+	modalCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	p := page.Context(modalCtx)
+
+	// Find the modal, then search its shadow tree for a button to click.
+	// deepQuery(modal, 'button') walks shadow+light DOM from the modal down.
+	_, _ = p.Eval(fmt.Sprintf(`() => {
+		%s
+		const modal = deepQuery(document, '%s');
+		if (!modal) return;
+		const btn = deepQuery(modal, 'button');
+		if (btn) btn.click();
+	}`, browser.DeepQueryJS, SelectorAnnouncementModal))
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+	case <-ctx.Done():
 	}
-	visible, err := el.Visible()
-	if err != nil || !visible {
-		return
+}
+
+// waitForTransactionsReady polls until the transactions table has rendered
+// content or reached a terminal state. Web Components render asynchronously —
+// WaitDOMStable fires before shadow content is fully populated.
+//
+// Terminal states: data rows rendered, "noresults", or any non-empty state
+// attribute (including error states like "La información no está disponible").
+func waitForTransactionsReady(ctx context.Context, page *rod.Page, timeout time.Duration) bool {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	p := page.Context(waitCtx)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		// Any non-empty state attr means the table has reached a terminal state
+		// (e.g., "noresults", "error", or similar). Let the parser handle it.
+		if state := browser.DeepQueryAttr(p, SelectorTransactionsTable, "state"); state != "" {
+			return true
+		}
+		// First row has a populated date attr — data has rendered
+		if browser.DeepQueryAttr(p, SelectorTxOperationDate, "date") != "" {
+			return true
+		}
+		// Table exists (even without state attr) — the page has loaded enough
+		if browser.DeepQueryExists(p, SelectorTransactionsTable) {
+			return true
+		}
+		select {
+		case <-waitCtx.Done():
+			return false
+		case <-ticker.C:
+		}
 	}
-	_ = el.Click(proto.InputMouseButtonLeft, 1)
-	time.Sleep(500 * time.Millisecond)
+}
+
+// waitForAccountsReady polls until the accounts page has rendered either
+// list view rows or tile view cards with data.
+func waitForAccountsReady(ctx context.Context, page *rod.Page, timeout time.Duration) bool {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	p := page.Context(waitCtx)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		// List view: table with at least one data row
+		if browser.DeepQueryExists(p, SelectorAccountRow) {
+			return true
+		}
+		// Tile view: at least one card with a product-amount (skip allContracts card)
+		if browser.DeepQueryAttr(p, SelectorAccountCard+"[product-amount]", "product-amount") != "" {
+			return true
+		}
+		select {
+		case <-waitCtx.Done():
+			return false
+		case <-ticker.C:
+		}
+	}
 }
 
 func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, string) error) error {

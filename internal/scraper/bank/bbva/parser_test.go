@@ -704,6 +704,62 @@ func TestDetectAnnouncementModal_EdgeCases(t *testing.T) {
 	}
 }
 
+func Test_hasTransactionError(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+		want bool
+	}{
+		{
+			"no table present",
+			"<html><body></body></html>",
+			false,
+		},
+		{
+			"table with state error",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table" state="error"></bbva-btge-accounts-solution-table></body></html>`,
+			true,
+		},
+		{
+			"table with state noresults",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table" state="noresults"></bbva-btge-accounts-solution-table></body></html>`,
+			false,
+		},
+		{
+			"table with empty state",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table" state=""></bbva-btge-accounts-solution-table></body></html>`,
+			false,
+		},
+		{
+			"table without state attribute",
+			`<html><body><bbva-btge-accounts-solution-table id="moviments-table"></bbva-btge-accounts-solution-table></body></html>`,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := goquery.NewDocumentFromReader(strings.NewReader(tt.html))
+			require.NoError(t, err)
+			got := hasTransactionError(doc)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseTransactions_BankError(t *testing.T) {
+	html := `<html><body>
+		<bbva-btge-accounts-solution-table id="moviments-table" state="error" total-items="0">
+			<table><tbody></tbody></table>
+		</bbva-btge-accounts-solution-table>
+	</body></html>`
+
+	txns, err := ParseTransactions(html)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, bank.ErrBankUnavailable)
+	assert.Nil(t, txns)
+}
+
 func Test_hasNoMovements(t *testing.T) {
 	tests := []struct {
 		name string

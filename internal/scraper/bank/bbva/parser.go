@@ -138,7 +138,12 @@ func ParseTransactions(html string) ([]bank.Transaction, error) {
 		return []bank.Transaction{}, nil
 	}
 
-	// 2. Parse the transactions table
+	// 2. Check if the bank returned an error state (e.g., "La información no está disponible")
+	if hasTransactionError(doc) {
+		return nil, fmt.Errorf("%w: transactions page returned error state", bank.ErrBankUnavailable)
+	}
+
+	// 3. Parse the transactions table
 	txnTable := doc.Find(SelectorTransactionsTable)
 	if txnTable.Length() == 0 {
 		return nil, fmt.Errorf("%w: table not found with selector: %s", bank.ErrParsingFailed, SelectorTransactionsTable)
@@ -321,6 +326,24 @@ func hasNoMovements(doc *goquery.Document) bool {
 	}
 
 	return state == "noresults"
+}
+
+// hasTransactionError checks if the transaction table has an error state
+// (e.g., state="error"). This is distinct from "noresults" — it indicates the
+// bank could not load the data ("La información no está disponible").
+func hasTransactionError(doc *goquery.Document) bool {
+	table := doc.Find(SelectorTransactionsTable)
+
+	if table.Length() == 0 {
+		return false
+	}
+
+	state, found := table.Attr("state")
+	if !found {
+		return false
+	}
+
+	return state == "error"
 }
 
 // --- ACCOUNTS PAGE (2026) ---
