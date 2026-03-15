@@ -52,7 +52,7 @@ function deepQuery(root, selector) {
 `
 
 // DeepQueryAllJS defines a JavaScript function that finds ALL elements matching
-// a CSS selector, recursively crossing shadow DOM boundaries.
+// a CSS selector, recursively crossing shadow DOM, light DOM, and iframe boundaries.
 // Unlike deepQuery (first-match), this collects every match.
 const DeepQueryAllJS = `
 function deepQueryAll(root, selector) {
@@ -62,6 +62,16 @@ function deepQueryAll(root, selector) {
 		// Check if this element matches
 		if (node !== root && node.matches && node.matches(selector)) {
 			results.push(node);
+		}
+		// Cross iframe boundary into its document
+		if (node.tagName === 'IFRAME') {
+			try {
+				var doc = node.contentDocument || (node.contentWindow && node.contentWindow.document);
+				if (doc && doc.documentElement) {
+					walk(doc.documentElement);
+				}
+			} catch(e) {} // cross-origin — skip
+			return;
 		}
 		// Walk shadow DOM children
 		if (node.shadowRoot) {
@@ -128,6 +138,56 @@ func DeepQueryAttr(page *rod.Page, selector string, attr string) string {
 		return ""
 	}
 	return result.Value.Str()
+}
+
+// DeepQueryHTML finds an element via deepQuery, flattens its shadow DOM
+// subtree in-place, then returns its outerHTML. This is much cheaper than
+// flattening the entire page because only the target subtree is processed.
+//
+// The shadow flattening is necessary because outerHTML only serializes light
+// DOM — content inside shadow roots (e.g., <tbody> rows in a web component
+// table) would be invisible without inlining.
+//
+// WARNING: This mutates the live DOM of the matched element's subtree.
+func DeepQueryHTML(page *rod.Page, selector string) (string, error) {
+	js := fmt.Sprintf(`() => {
+		%s
+		const el = deepQuery(document, '%s');
+		if (!el) return '';
+
+		// Flatten shadow DOM within this subtree only
+		function flattenSubtree(node) {
+			if (!node || node.nodeType !== 1) return;
+			// Process children first (depth-first, bottom-up)
+			if (node.shadowRoot) {
+				// Flatten shadow children first
+				for (const child of Array.from(node.shadowRoot.childNodes)) {
+					if (child.nodeType === 1) flattenSubtree(child);
+				}
+				// Flatten light DOM children (slotted content)
+				for (const child of Array.from(node.childNodes)) {
+					if (child.nodeType === 1) flattenSubtree(child);
+				}
+				// Inline shadow content into light DOM
+				for (const child of Array.from(node.shadowRoot.childNodes)) {
+					if (child.nodeType === 1 && child.tagName === 'STYLE') continue;
+					try { node.appendChild(child.cloneNode(true)); } catch(e) {}
+				}
+			} else {
+				for (const child of Array.from(node.childNodes)) {
+					if (child.nodeType === 1) flattenSubtree(child);
+				}
+			}
+		}
+		flattenSubtree(el);
+		return el.outerHTML;
+	}`, DeepQueryJS, selector)
+
+	result, err := page.Eval(js)
+	if err != nil {
+		return "", fmt.Errorf("deepQueryHTML eval: %w", err)
+	}
+	return result.Value.Str(), nil
 }
 
 // DeepQueryCountAll returns the number of elements matching selector across

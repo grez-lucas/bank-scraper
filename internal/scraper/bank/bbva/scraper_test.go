@@ -418,7 +418,7 @@ func TestBBVAScraper_Live_FullFlow(t *testing.T) {
 	skipUnlessMode(t, TestModeLive)
 	creds := requireLiveCreds(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	scraper, err := NewBBVAScraper(WithTimeout(60 * time.Second))

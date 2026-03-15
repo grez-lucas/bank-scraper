@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ const (
 	portalURL   = baseURL + "/nextgenempresas/portal/index.html"
 	accountsURL = baseURL + "/nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution"
 
-	maxPaginationClicks = 2 // Safety limit for "Ver más" pagination loop
+	maxPaginationClicks = 10 // Safety limit for "Ver más" pagination loop
 
 	defaultTimeout = 30 * time.Second
 
@@ -481,18 +482,11 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]
 		}
 	}
 
-	// Wait for the "Últimos movimientos" section to update after card click
-	if err := s.page.Context(navCtx).WaitDOMStable(time.Second, 0); err != nil {
-		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
-			Operation: "GetTransactions",
-			Cause:     bank.ErrUnknown,
-			Details:   fmt.Sprintf("DOM unstable after card click: %v", err),
-		}
-	}
-
-	// Step 3: Click "Ver todos los movimientos" to go to full transactions page
-	if !clickViewAllMovements(navCtx, s.page) {
+	// Step 3: Poll for "Ver todos los movimientos" link and click it.
+	// After the card click, the "Últimos movimientos" section renders
+	// asynchronously. Instead of a blanket WaitDOMStable, we poll until
+	// clickViewAllMovements succeeds (the link appears).
+	if !waitAndClickViewAll(navCtx, s.page) {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
@@ -552,41 +546,90 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]
 
 		// Lightweight check - count row elements without flattening
 		rowCount := browser.DeepQueryCountAll(page, SelectorTransactionRow)
+		s.logger.Info("pagination: checking rows",
+			slog.Int("iteration", i),
+			slog.Int("rowCount", rowCount),
+			slog.Int("target", targetTransactionCount))
 		if rowCount >= targetTransactionCount {
+			s.logger.Info("pagination: target reached, stopping")
 			break
 		}
 
-		if browser.DeepQueryExists(page, SelectorLoadMoreButton) {
-			break // No button - all transactions loadded
+		if !browser.DeepQueryExists(page, SelectorLoadMoreButton) {
+			s.logger.Info("pagination: no 'Ver más' button found, all transactions loaded")
+			break // No button — all transactions loaded
 		}
-		fmt.Printf("DEBUG: iteration %d - found loadMoreBtn\n", i)
 
+		prevCount := rowCount
+		// The "Ver más" footer is a web component (bbva-table-footer) with the
+		// actual clickable element (bbva-type-link[role="button"]) inside its
+		// shadow root. Clicking the outer custom element does nothing — we must
+		// deepQuery into its shadow tree for the real button, same pattern as
+		// dismissAnnouncementModal.
 		clicked, _ := page.Eval(fmt.Sprintf(`() => {
 			%s
-			const btn = deepQuery(document, '%s');
-			if (!btn) return false;
-			btn.click();
+			const footer = deepQuery(document, '%s');
+			if (!footer) return false;
+			const link = deepQuery(footer, 'bbva-type-link[role="button"]');
+			if (link) { link.click(); return true; }
+			// Fallback: try any clickable element inside the footer
+			const btn = deepQuery(footer, 'button');
+			if (btn) { btn.click(); return true; }
+			footer.click();
 			return true;
 			}`, browser.DeepQueryJS, SelectorLoadMoreButton))
 		if !clicked.Value.Bool() {
+			s.logger.Info("pagination: click failed, stopping")
 			break
 		}
-		if err := page.WaitDOMStable(time.Second*5, 0); err != nil {
-			break
+		s.logger.Info("pagination: clicked 'Ver más'", slog.Int("iteration", i))
+		if err := page.WaitDOMStable(time.Second, 0); err != nil {
+			s.logger.Warn("pagination: WaitDOMStable failed after click, continuing to poll")
 		}
 
+		// Poll for row count to increase — confirms new rows actually loaded
+		rowsLoaded := false
+		for j := 0; j < 10; j++ {
+			newCount := browser.DeepQueryCountAll(page, SelectorTransactionRow)
+			if newCount > prevCount {
+				s.logger.Info("pagination: new rows loaded",
+					slog.Int("iteration", i),
+					slog.Int("prevCount", prevCount),
+					slog.Int("newCount", newCount))
+				rowsLoaded = true
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		if !rowsLoaded {
+			s.logger.Info("pagination: no new rows after click, stopping",
+				slog.Int("iteration", i),
+				slog.Int("rowCount", prevCount))
+			break
+		}
 	}
 	loopCancel()
 
-	flattenCtx, flattenCancel := context.WithTimeout(ctx, s.timeout)
-	defer flattenCancel()
-	html, _, _, err := browser.FlattenShadowDOM(s.page.Context(flattenCtx))
+	// Extract just the transactions table HTML via deepQuery — much faster
+	// than flattening the entire page DOM. The parser only reads attributes
+	// on custom elements (light DOM), so shadow DOM flattening isn't needed.
+	extractCtx, extractCancel := context.WithTimeout(ctx, s.timeout)
+	defer extractCancel()
+	html, err := browser.DeepQueryHTML(s.page.Context(extractCtx), SelectorTransactionsTable)
 	if err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
-			Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
+			Details:   fmt.Sprintf("extract transactions table HTML: %v", err),
+		}
+	}
+	if html == "" {
+		return nil, &bank.ScraperError{
+			BankCode:  bank.BankBBVA,
+			Operation: "GetTransactions",
+			Cause:     bank.ErrParsingFailed,
+			Details:   "transactions table not found via deepQuery",
 		}
 	}
 
@@ -803,23 +846,14 @@ func (s *BBVAScraper) waitForDashboard(ctx context.Context, page *rod.Page) bool
 // BBVA's portal is a hash-routed SPA. Hash-only URL changes don't trigger
 // a full page reload — Chrome treats them as same-page navigation. Since
 // FlattenShadowDOM mutates the live DOM (inlining shadow content), subsequent
-// hash navigations would operate on a corrupted DOM. To ensure a clean state,
-// we navigate to about:blank first, forcing a full reload of the SPA.
+// hash navigations would operate on a corrupted DOM. A cache-busting query
+// param (?_=<timestamp>) before the hash fragment forces Chrome to treat
+// each navigation as a new URL → full page load guaranteed. The SPA ignores
+// query params; the hash router handles #!/route normally.
 func navigateTo(ctx context.Context, page *rod.Page, url string) error {
 	p := page.Context(ctx)
-
-	// Set the target URL. If it's a hash-only change from the current URL,
-	// Chrome won't reload — that's fine, Reload() below forces it.
-	if err := p.Navigate(url); err != nil {
+	if err := p.Navigate(cacheBust(url)); err != nil {
 		return fmt.Errorf("navigate to %s: %w", url, err)
-	}
-
-	// Force full page reload to clear FlattenShadowDOM mutations.
-	// Unlike about:blank, this preserves sessionStorage and the URL,
-	// so the SPA bootstraps fresh at the correct hash route with all
-	// in-memory state (like selectedAccount) initialized from the URL.
-	if err := p.Reload(); err != nil {
-		return fmt.Errorf("reload %s: %w", url, err)
 	}
 	if err := p.WaitLoad(); err != nil {
 		return fmt.Errorf("wait load %s: %w", url, err)
@@ -829,6 +863,15 @@ func navigateTo(ctx context.Context, page *rod.Page, url string) error {
 	}
 	dismissAnnouncementModal(ctx, page)
 	return nil
+}
+
+// cacheBust inserts ?_=<nanosecond-timestamp> before the hash fragment.
+func cacheBust(rawURL string) string {
+	q := "?_=" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	if i := strings.Index(rawURL, "#"); i >= 0 {
+		return rawURL[:i] + q + rawURL[i:]
+	}
+	return rawURL + q
 }
 
 // dismissAnnouncementModal dismisses the news/announcement popup if present.
@@ -853,11 +896,6 @@ func dismissAnnouncementModal(ctx context.Context, page *rod.Page) {
 		const btn = deepQuery(modal, 'button');
 		if (btn) btn.click();
 	}`, browser.DeepQueryJS, SelectorAnnouncementModal))
-
-	select {
-	case <-time.After(500 * time.Millisecond):
-	case <-ctx.Done():
-	}
 }
 
 // clickViewAllMovements finds and clicks the "Ver todos los movimientos" link
@@ -881,6 +919,25 @@ func clickViewAllMovements(ctx context.Context, page *rod.Page) bool {
 	return result.Value.Bool()
 }
 
+// waitAndClickViewAll polls at 200ms intervals until clickViewAllMovements
+// succeeds. This replaces the blanket WaitDOMStable after clicking an account
+// card — the "Ver todos" link only appears once the "Últimos movimientos"
+// section finishes rendering.
+func waitAndClickViewAll(ctx context.Context, page *rod.Page) bool {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if clickViewAllMovements(ctx, page) {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
 // waitForTransactionsReady polls until the transactions table has rendered
 // content or reached a terminal state. Web Components render asynchronously —
 // WaitDOMStable fires before shadow content is fully populated.
@@ -891,7 +948,7 @@ func waitForTransactionsReady(ctx context.Context, page *rod.Page, timeout time.
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	p := page.Context(waitCtx)
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		// Any non-empty state attr means the table has reached a terminal state
@@ -921,7 +978,7 @@ func waitForAccountsReady(ctx context.Context, page *rod.Page, timeout time.Dura
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	p := page.Context(waitCtx)
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		// List view: table with at least one data row
