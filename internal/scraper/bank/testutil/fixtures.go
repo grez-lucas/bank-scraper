@@ -1,3 +1,4 @@
+// Package testutil provides test helpers for loading HTML fixtures.
 package testutil
 
 import (

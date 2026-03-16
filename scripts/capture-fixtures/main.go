@@ -1,3 +1,4 @@
+// Package main implements the HTML fixture capture tool.
 package main
 
 import (
@@ -187,7 +188,7 @@ func main() {
 		}
 
 		fmt.Printf("   Navigate the browser to the desired state, then press ENTER to capture...")
-		reader.ReadString('\n')
+		_, _ = reader.ReadString('\n')
 
 		browserutil.WaitForIFrames(page)
 		time.Sleep(1 * time.Second)
@@ -283,5 +284,5 @@ Target a specific shadow host:
 `, bankCode, time.Now().Format(time.RFC3339), os.Getenv("USER"))
 
 	metaPath := filepath.Join(outDir, "README.md")
-	os.WriteFile(metaPath, []byte(metadata), 0o644)
+	_ = os.WriteFile(metaPath, []byte(metadata), 0o644)
 }

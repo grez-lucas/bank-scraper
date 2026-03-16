@@ -55,7 +55,7 @@ func requireLiveCreds(t *testing.T) Credentials {
 }
 
 // Integration test - runs only in replay/live mode
-func TestBBVAScraper_Login_ReplaySuccess_Integration(t *testing.T) {
+func TestScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 	skipUnlessMode(t, TestModeReplay)
 
 	// Load recorded session
@@ -72,7 +72,7 @@ func TestBBVAScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 	t.Logf("Replayer stats: exact=%d, path=%d", stats["exact_matches"], stats["path_matches"])
 
 	// Create scraper with replay hijacker
-	scraper, err := NewBBVAScraper(
+	scraper, err := NewScraper(
 		WithHijacker(replayer.Middleware()),
 		WithTimeout(5*time.Second),
 	)
@@ -89,7 +89,7 @@ func TestBBVAScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 
 	require.NoError(t, err, "Login should succeed with recorded session")
 	assert.NotEmpty(t, session.ID, "Session ID should be set")
-	assert.Equal(t, bank.BankBBVA, session.BankCode, "Bank code should be BBVA")
+	assert.Equal(t, bank.BankBBVA, session.Code, "Code should be BBVA")
 	assert.False(t, session.ExpiresAt.IsZero(), "Session expiry should be set")
 
 	// Page lifecycle: page and session should persist after successful login
@@ -99,7 +99,7 @@ func TestBBVAScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 		"Session expiry should be ~10 minutes from now")
 }
 
-func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) {
+func TestScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) {
 	t.Skip("TODO: re-record with #enviarSenda for Senda-based bot detection")
 
 	skipUnlessMode(t, TestModeReplay)
@@ -114,7 +114,7 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	replayer := testutil.NewReplayer(har)
 
 	// Create scraper with replay hijacker
-	scraper, err := NewBBVAScraper(
+	scraper, err := NewScraper(
 		WithHijacker(replayer.Middleware()),
 		WithTimeout(10*time.Second),
 	)
@@ -137,7 +137,7 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	require.ErrorAs(t, err, &scraperErr, "Error should be a ScraperError")
 	require.ErrorIs(t, err, bank.ErrBotDetection, "Error cause should be Bot Detection")
 
-	assert.Equal(t, bank.BankBBVA, scraperErr.BankCode)
+	assert.Equal(t, bank.BankBBVA, scraperErr.Code)
 	assert.Equal(t, "Login", scraperErr.Operation)
 
 	// Page lifecycle: page and session should be cleaned up after failed login
@@ -145,7 +145,7 @@ func TestBBVAScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) 
 	assert.Nil(t, scraper.session, "Session should not be stored after failed login")
 }
 
-func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.T) {
+func TestScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.T) {
 	skipUnlessMode(t, TestModeReplay)
 
 	// Load recorded error session (Senda flow: iframe gets 403 → LOGIN_ERROR → span shows error)
@@ -158,7 +158,7 @@ func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.
 	replayer := testutil.NewReplayer(har)
 
 	// Create scraper with replay hijacker
-	scraper, err := NewBBVAScraper(
+	scraper, err := NewScraper(
 		WithHijacker(replayer.Middleware()),
 		WithTimeout(10*time.Second),
 	)
@@ -179,7 +179,7 @@ func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.
 	var scraperErr *bank.ScraperError
 	require.ErrorAs(t, err, &scraperErr, "Error should be a ScraperError")
 	require.ErrorIs(t, err, bank.ErrInvalidCredentials, "Error cause should be Invalid Credentials")
-	assert.Equal(t, bank.BankBBVA, scraperErr.BankCode)
+	assert.Equal(t, bank.BankBBVA, scraperErr.Code)
 	assert.Equal(t, "Login", scraperErr.Operation)
 
 	// Senda probe: error text comes from direct API probe in replay mode
@@ -191,7 +191,7 @@ func TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.
 	assert.Nil(t, scraper.session, "Session should not be stored after failed login")
 }
 
-func TestBBVAScraper_Login_ReplayRelogin_Integration(t *testing.T) {
+func TestScraper_Login_ReplayRelogin_Integration(t *testing.T) {
 	skipUnlessMode(t, TestModeReplay)
 
 	harPath := filepath.Join("testdata", "recordings", "login-success.har.json")
@@ -202,7 +202,7 @@ func TestBBVAScraper_Login_ReplayRelogin_Integration(t *testing.T) {
 	har := testutil.MustLoadHAR(t, harPath)
 	replayer := testutil.NewReplayer(har)
 
-	scraper, err := NewBBVAScraper(
+	scraper, err := NewScraper(
 		WithHijacker(replayer.Middleware()),
 		WithTimeout(5*time.Second),
 	)
@@ -230,7 +230,7 @@ func TestBBVAScraper_Login_ReplayRelogin_Integration(t *testing.T) {
 	assert.NotSame(t, firstPage, scraper.page, "Re-login should create a new page")
 }
 
-func TestBBVAScraper_GetBalance_Replay_Integration(t *testing.T) {
+func TestScraper_GetBalance_Replay_Integration(t *testing.T) {
 	t.Skip("TODO: portal SPA (Cells framework) cannot initialize in replay mode — " +
 		"CDP Fetch bypasses cookie/session setup needed by the Polymer web components. " +
 		"Requires re-architecting replay to inject Cells session state or using a " +
@@ -247,7 +247,7 @@ func TestBBVAScraper_GetBalance_Replay_Integration(t *testing.T) {
 	har := testutil.MustLoadHAR(t, harPath)
 	replayer := testutil.NewReplayer(har)
 
-	scraper, err := NewBBVAScraper(
+	scraper, err := NewScraper(
 		WithHijacker(replayer.Middleware()),
 		WithTimeout(45*time.Second),
 	)
@@ -283,7 +283,7 @@ func TestBBVAScraper_GetBalance_Replay_Integration(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), usd.FetchedAt, 10*time.Second)
 }
 
-func TestBBVAScraper_GetTransactions_Replay_Integration(t *testing.T) {
+func TestScraper_GetTransactions_Replay_Integration(t *testing.T) {
 	t.Skip("TODO: portal SPA (Cells framework) cannot initialize in replay mode — " +
 		"CDP Fetch bypasses cookie/session setup needed by the Polymer web components. " +
 		"Requires re-architecting replay to inject Cells session state or using a " +
@@ -300,7 +300,7 @@ func TestBBVAScraper_GetTransactions_Replay_Integration(t *testing.T) {
 	har := testutil.MustLoadHAR(t, harPath)
 	replayer := testutil.NewReplayer(har)
 
-	scraper, err := NewBBVAScraper(
+	scraper, err := NewScraper(
 		WithHijacker(replayer.Middleware()),
 		WithTimeout(45*time.Second),
 	)
@@ -417,11 +417,11 @@ func TestClassifySendaErrorCode(t *testing.T) {
 // loginAndGetAccounts creates a new scraper, logs in, and fetches balances.
 // Returns the scraper (still logged in) and the list of balances.
 // The caller is responsible for closing the scraper.
-func loginAndGetAccounts(t *testing.T, ctx context.Context) (*BBVAScraper, []bank.Balance) {
+func loginAndGetAccounts(t *testing.T, ctx context.Context) (*Scraper, []bank.Balance) {
 	t.Helper()
 	creds := requireLiveCreds(t)
 
-	scraper, err := NewBBVAScraper(WithTimeout(60 * time.Second))
+	scraper, err := NewScraper(WithTimeout(60 * time.Second))
 	require.NoError(t, err)
 
 	session, err := scraper.Login(ctx, creds)
@@ -463,26 +463,26 @@ func assertTransactions(t *testing.T, txns []bank.Transaction) {
 	t.Logf("  Last:  %s %s %s %d", last.Date.Format("2006-01-02"), last.Type, last.Description, last.Amount)
 }
 
-func TestBBVAScraper_Live_Login(t *testing.T) {
+func TestScraper_Live_Login(t *testing.T) {
 	skipUnlessMode(t, TestModeLive)
 	creds := requireLiveCreds(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	scraper, err := NewBBVAScraper(WithTimeout(60 * time.Second))
+	scraper, err := NewScraper(WithTimeout(60 * time.Second))
 	require.NoError(t, err)
 	defer func() { _ = scraper.Close() }()
 
 	session, err := scraper.Login(ctx, creds)
 	require.NoError(t, err, "Login failed")
 	assert.NotEmpty(t, session.ID)
-	assert.Equal(t, bank.BankBBVA, session.BankCode)
+	assert.Equal(t, bank.BankBBVA, session.Code)
 	assert.False(t, session.ExpiresAt.IsZero())
 	t.Logf("Login OK — session=%s expires=%s", session.ID, session.ExpiresAt.Format(time.RFC3339))
 }
 
-func TestBBVAScraper_Live_GetBalance(t *testing.T) {
+func TestScraper_Live_GetBalance(t *testing.T) {
 	skipUnlessMode(t, TestModeLive)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -503,7 +503,7 @@ func TestBBVAScraper_Live_GetBalance(t *testing.T) {
 	}
 }
 
-func TestBBVAScraper_Live_GetTransactions_FirstAccount(t *testing.T) {
+func TestScraper_Live_GetTransactions_FirstAccount(t *testing.T) {
 	skipUnlessMode(t, TestModeLive)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
@@ -520,7 +520,7 @@ func TestBBVAScraper_Live_GetTransactions_FirstAccount(t *testing.T) {
 	assertTransactions(t, txns)
 }
 
-func TestBBVAScraper_Live_GetTransactions_SecondAccount(t *testing.T) {
+func TestScraper_Live_GetTransactions_SecondAccount(t *testing.T) {
 	skipUnlessMode(t, TestModeLive)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)

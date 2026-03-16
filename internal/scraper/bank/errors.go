@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// Sentinel errors for bank scraper operations.
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrSessionExpired     = errors.New("session expired")
@@ -19,14 +20,14 @@ var (
 
 // ScraperError provides detailed error context
 type ScraperError struct {
-	BankCode  BankCode
+	Code  Code
 	Operation string
 	Cause     error
 	Details   string
 }
 
 func (e *ScraperError) Error() string {
-	return fmt.Sprintf("[%s] %s failed: %v - %s", e.BankCode, e.Operation, e.Cause, e.Details)
+	return fmt.Sprintf("[%s] %s failed: %v - %s", e.Code, e.Operation, e.Cause, e.Details)
 }
 
 func (e *ScraperError) Unwrap() error {

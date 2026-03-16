@@ -38,7 +38,8 @@ const (
 	maxTransactionCount = 250
 )
 
-type BBVAScraper struct {
+// Scraper implements browser automation for the BBVA Net Cash portal.
+type Scraper struct {
 	browser  *rod.Browser
 	page     *rod.Page         // Authenticated page, kept alive between operations
 	router   *rod.HijackRouter // Request hijacker, kept alive with the page
@@ -49,6 +50,7 @@ type BBVAScraper struct {
 	logger   *slog.Logger
 }
 
+// Credentials holds BBVA login credentials.
 type Credentials struct {
 	CompanyCode string
 	UserCode    string
@@ -56,10 +58,11 @@ type Credentials struct {
 }
 
 // Option pattern for configuration
-type Option func(*BBVAScraper)
+type Option func(*Scraper)
 
+// WithTimeout sets the scraper operation timeout.
 func WithTimeout(d time.Duration) Option {
-	return func(s *BBVAScraper) {
+	return func(s *Scraper) {
 		s.timeout = d
 	}
 }
@@ -67,7 +70,7 @@ func WithTimeout(d time.Duration) Option {
 // WithHeadless controls whether the browser launches in headless mode.
 // Default is true. Set to false for visual debugging of live sessions.
 func WithHeadless(headless bool) Option {
-	return func(s *BBVAScraper) {
+	return func(s *Scraper) {
 		s.headless = headless
 	}
 }
@@ -76,19 +79,21 @@ func WithHeadless(headless bool) Option {
 // This is used for replay testing to serve recorded responses instead of
 // making real network requests.
 func WithHijacker(middleware func(*rod.Hijack)) Option {
-	return func(s *BBVAScraper) {
+	return func(s *Scraper) {
 		s.hijacker = middleware
 	}
 }
 
+// WithLogger sets a custom logger.
 func WithLogger(l *slog.Logger) Option {
-	return func(s *BBVAScraper) {
+	return func(s *Scraper) {
 		s.logger = l
 	}
 }
 
-func NewBBVAScraper(opts ...Option) (*BBVAScraper, error) {
-	s := &BBVAScraper{
+// NewScraper creates a new BBVA scraper with the given options.
+func NewScraper(opts ...Option) (*Scraper, error) {
+	s := &Scraper{
 		timeout:  defaultTimeout,
 		headless: true,
 		logger:   slog.Default(),
@@ -116,7 +121,8 @@ func NewBBVAScraper(opts ...Option) (*BBVAScraper, error) {
 	return s, nil
 }
 
-func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Session, error) {
+// Login authenticates with BBVA and returns a session.
+func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, error) {
 	// Close previous page if re-logging in
 	if s.page != nil {
 		s.stopHijacker()
@@ -128,7 +134,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	page, err := s.browser.Page(proto.TargetCreateTarget{URL: loginURL})
 	if err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   err.Error(),
@@ -152,7 +158,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 		router.MustAdd("*", s.hijacker)
 	} else {
 		router.MustAdd("*", func(h *rod.Hijack) {
-			h.LoadResponse(http.DefaultClient, true)
+			_ = h.LoadResponse(http.DefaultClient, true)
 		})
 	}
 
@@ -188,7 +194,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	loginBtn, err := p.Element(SelectorLoginButton)
 	if err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("login button not found: %v", err),
@@ -196,7 +202,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	}
 	if err := loginBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("failed to click login: %v", err),
@@ -213,7 +219,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 			// Live mode: wait for the SPA to set the dashboard route hash
 			if !s.waitForDashboard(ctx, page) {
 				return nil, &bank.ScraperError{
-					BankCode:  bank.BankBBVA,
+					Code:  bank.BankBBVA,
 					Operation: "Login",
 					Cause:     bank.ErrUnknown,
 					Details:   "login completed but dashboard did not load",
@@ -224,7 +230,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 
 	case loginError:
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     classifySendaError(result.errorText),
 			Details:   result.errorText,
@@ -245,7 +251,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 			pageURL = info.URL
 		}
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("login timed out waiting for redirect or error (url=%s, screenshot=%s)", pageURL, screenshotPath),
@@ -255,7 +261,7 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	// Store session and page for subsequent operations
 	session := &bank.Session{
 		ID:        generateSessionID(),
-		BankCode:  bank.BankBBVA,
+		Code:  bank.BankBBVA,
 		ExpiresAt: time.Now().Add(bbvaSessionTimeout),
 	}
 	s.session = session
@@ -265,7 +271,8 @@ func (s *BBVAScraper) Login(ctx context.Context, creds Credentials) (*bank.Sessi
 	return session, nil
 }
 
-func (s *BBVAScraper) Close() error {
+// Close shuts down the browser and releases resources.
+func (s *Scraper) Close() error {
 	s.stopHijacker()
 	if s.page != nil {
 		_ = s.page.Close()
@@ -278,17 +285,18 @@ func (s *BBVAScraper) Close() error {
 	return nil
 }
 
-func (s *BBVAScraper) stopHijacker() {
+func (s *Scraper) stopHijacker() {
 	if s.router != nil {
-		s.router.Stop()
+		_ = s.router.Stop()
 		s.router = nil
 	}
 }
 
-func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
+// GetBalance fetches balances for all accounts.
+func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	if s.page == nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrSessionExpired,
 			Details:   "no active session — call Login first",
@@ -300,7 +308,7 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	defer navCancel()
 	if err := navigateTo(navCtx, s.page, accountsURL); err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("navigate to accounts: %v", err),
@@ -394,7 +402,7 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 			pageURL = info.URL
 		}
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("timed out waiting for accounts to render (url=%s, debug=%s, diag=%s)", pageURL, debugDir, diagJSON),
@@ -407,7 +415,7 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	html, _, _, err := browser.FlattenShadowDOM(s.page.Context(flattenCtx))
 	if err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
@@ -421,7 +429,7 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 		debugPath := filepath.Join(debugDir, "balances-debug.html")
 		_ = os.WriteFile(debugPath, []byte(html), 0o644)
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     err,
 			Details:   fmt.Sprintf("parse account balances failed (debug HTML dumped to %s)", debugPath),
@@ -431,12 +439,8 @@ func (s *BBVAScraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	return balances, nil
 }
 
-// transactionsURL builds the URL for a specific account's movements page.
-func transactionsURL(accountID string) string {
-	return portalURL + "#!/bbva-btge-accounts-solution/account/" + accountID + "/movements"
-}
-
-func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, count int) ([]bank.Transaction, error) {
+// GetTransactions fetches transactions for the given account.
+func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count int) ([]bank.Transaction, error) {
 	if count < minTransactionCount {
 		count = minTransactionCount
 	}
@@ -446,7 +450,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 
 	if s.page == nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrSessionExpired,
 			Details:   "no active session — call Login first",
@@ -464,7 +468,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	navCancel()
 	if err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("navigate to accounts: %v", err),
@@ -474,7 +478,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	// Step 2: Wait for accounts to render (creates own internal context)
 	if !waitForAccountsReady(ctx, s.page, s.timeout) {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   "timed out waiting for accounts page to render",
@@ -487,7 +491,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	// "Ver todos los movimientos" redirects based on stale SPA state.
 	if !waitAndClickAccountDetail(ctx, s.page, accountID, s.timeout) {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrAccountNotFound,
 			Details:   fmt.Sprintf("could not find or click 'Ir al detalle de cuenta' for account %s", accountID),
@@ -500,7 +504,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	stableCancel()
 	if err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("DOM unstable after account detail click: %v", err),
@@ -522,7 +526,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 			pageURL = info.URL
 		}
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("timed out waiting for transactions table to render (url=%s, screenshot=%s)", pageURL, screenshotPath),
@@ -538,7 +542,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	for i := 0; i < maxPaginationClicks; i++ {
 		if loopCtx.Err() != nil {
 			return nil, &bank.ScraperError{
-				BankCode:  bank.BankBBVA,
+				Code:  bank.BankBBVA,
 				Operation: "GetTransactions",
 				Cause:     bank.ErrUnknown,
 				Details:   "context cancelled during pagination",
@@ -619,7 +623,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	html, err := browser.DeepQueryHTML(s.page.Context(extractCtx), SelectorTransactionsTable)
 	if err != nil {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("extract transactions table HTML: %v", err),
@@ -627,7 +631,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 	}
 	if html == "" {
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrParsingFailed,
 			Details:   "transactions table not found via deepQuery",
@@ -641,7 +645,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 		debugPath := filepath.Join(debugDir, "transactions-debug.html")
 		_ = os.WriteFile(debugPath, []byte(html), 0o644)
 		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
+			Code:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     err,
 			Details:   fmt.Sprintf("parse transactions failed (debug HTML dumped to %s)", debugPath),
@@ -672,7 +676,7 @@ type loginResult struct {
 //
 // In replay mode (s.hijacker != nil), uses a direct Senda API probe
 // to bypass the broken iframe postMessage chain.
-func (s *BBVAScraper) waitForLoginOutcome(ctx context.Context, page *rod.Page) loginResult {
+func (s *Scraper) waitForLoginOutcome(ctx context.Context, page *rod.Page) loginResult {
 	// In replay mode, the iframe postMessage chain is broken — use direct API probe
 	if s.hijacker != nil {
 		return s.probeSendaAPI(ctx, page)
@@ -721,7 +725,7 @@ type probeResponse struct {
 // navigates to the grantingTicket endpoint. The hijacker intercepts the
 // navigation request and serves the HAR response. This avoids fetch() from
 // JS context (which the browser blocks for cross-origin on hijacked pages).
-func (s *BBVAScraper) probeSendaAPI(ctx context.Context, page *rod.Page) loginResult {
+func (s *Scraper) probeSendaAPI(ctx context.Context, _ *rod.Page) loginResult {
 	probeCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
@@ -745,7 +749,7 @@ func (s *BBVAScraper) probeSendaAPI(ctx context.Context, page *rod.Page) loginRe
 		}
 	})
 	go probeRouter.Run()
-	defer probeRouter.Stop()
+	defer func() { _ = probeRouter.Stop() }()
 
 	// Navigate triggers the hijacker — response is captured on ch
 	if err := probePage.Navigate(SendaAPIURL); err != nil {
@@ -763,11 +767,11 @@ func (s *BBVAScraper) probeSendaAPI(ctx context.Context, page *rod.Page) loginRe
 
 // classifyProbeResponse converts a grantingTicket API response into a loginResult.
 func classifyProbeResponse(resp probeResponse) loginResult {
-	switch {
-	case resp.status == 200:
+	switch resp.status {
+	case 200:
 		return loginResult{outcome: loginSuccess}
 
-	case resp.status == 403:
+	case 403:
 		var apiErr struct {
 			ErrorCode string `json:"error-code"`
 		}
@@ -822,7 +826,7 @@ func classifySendaErrorCode(code string) error {
 // waitForDashboard polls the page URL for the dashboard route hash.
 // The 2026 portal SPA sets this after the "Validando tus credenciales"
 // splash transitions to the dashboard.
-func (s *BBVAScraper) waitForDashboard(ctx context.Context, page *rod.Page) bool {
+func (s *Scraper) waitForDashboard(ctx context.Context, page *rod.Page) bool {
 	waitCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	p := page.Context(waitCtx)

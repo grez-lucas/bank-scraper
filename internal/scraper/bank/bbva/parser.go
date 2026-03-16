@@ -12,6 +12,7 @@ import (
 	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
 )
 
+// Currency symbols and labels for BBVA account parsing.
 const (
 	// -- ACCOUNTS --
 
@@ -21,8 +22,8 @@ const (
 	CurrencyCodePEN = "PEN"
 	CurrencyCodeUSD = "USD"
 
-	// Table Labels
-	LabelSoles   = "SOLES"
+	// LabelSoles is the BBVA label for PEN accounts.
+	LabelSoles = "SOLES"
 	LabelDollars = "DOLARES"
 
 	// -- TRANSACTIONS --
@@ -46,6 +47,7 @@ var spanishMonths = map[string]string{
 	"Dic": "Dec",
 }
 
+// LoginErrorInfo holds error details from a failed BBVA login.
 type LoginErrorInfo struct {
 	Code       string
 	Message    string
@@ -60,13 +62,14 @@ func (e *LoginErrorInfo) Unwrap() error {
 	return fmt.Errorf("%s", e.Error())
 }
 
+// BalanceResult holds parsed balances by currency.
 type BalanceResult struct {
 	USD bank.Balance
 	PEN bank.Balance
 }
 
-// BBVARow represents a row in the BBVA transactions HTML table
-type BBVARow struct {
+// Row represents a row in the BBVA transactions HTML table.
+type Row struct {
 	FOperacion       time.Time
 	FValor           time.Time
 	Codigo           string
@@ -77,12 +80,13 @@ type BBVARow struct {
 	Beneficiary      string
 }
 
-func (r *BBVARow) IsPositiveImport() bool {
+// IsPositiveImport returns true if the transaction amount is positive (credit).
+func (r *Row) IsPositiveImport() bool {
 	return r.Importe > 0
 }
 
 // ToTransaction transforms a BBVA Row into a standard transaction
-func (r *BBVARow) ToTransaction() *bank.Transaction {
+func (r *Row) ToTransaction() *bank.Transaction {
 	absAmount := r.Importe
 	txnType := bank.TransactionCredit
 
@@ -127,6 +131,7 @@ func ParseAccountBalances(html string) ([]bank.Balance, error) {
 	return nil, fmt.Errorf("%w: no account elements found", bank.ErrParsingFailed)
 }
 
+// ParseTransactions parses transaction rows from flattened BBVA HTML.
 func ParseTransactions(html string) ([]bank.Transaction, error) {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -200,6 +205,7 @@ func DetectAnnouncementModal(html string) bool {
 	return doc.Find(SelectorAnnouncementModal).Length() > 0
 }
 
+// DetectLoginError checks login response HTML for error indicators.
 func DetectLoginError(html string, statusCode int) error {
 	// Handle HTTP errors first
 	switch statusCode {
@@ -240,7 +246,7 @@ func DetectLoginError(html string, statusCode int) error {
 
 // --- PRIVATE DOMAIN LOGIC ---
 
-func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
+func parseTransactionRow(s *goquery.Selection) (*Row, error) {
 	// 1. Dates — find the date elements, read "date" + "year" attrs, call parseBankDate2026
 	opDateElem := s.Find(SelectorTxOperationDate)
 	opDateStr, exists := opDateElem.Attr("date")
@@ -299,8 +305,8 @@ func parseTransactionRow(s *goquery.Selection) (*BBVARow, error) {
 		return nil, fmt.Errorf("%w: parse secondary-amount: %v", bank.ErrParsingFailed, err)
 	}
 
-	// 5. Build and return BBVARow
-	return &BBVARow{
+	// 5. Build and return Row
+	return &Row{
 		FOperacion:       opDate,
 		FValor:           valDate,
 		Codigo:           code,
@@ -525,6 +531,7 @@ func parseBankDate2026(date, year string) (time.Time, error) {
 	return parsedDate, nil
 }
 
+// ParseBankDate parses a date string in DD-MM-YYYY format.
 func ParseBankDate(s string) (time.Time, error) {
 	// 1. Clean up the string
 	cleanStr := strings.TrimSpace(s)

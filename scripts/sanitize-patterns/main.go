@@ -1,3 +1,4 @@
+// Package main implements the HTML fixture sanitizer.
 package main
 
 import (

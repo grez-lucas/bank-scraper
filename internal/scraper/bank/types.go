@@ -2,9 +2,10 @@ package bank
 
 import "time"
 
+// Session represents an authenticated bank session.
 type Session struct {
 	ID        string
-	BankCode  BankCode
+	Code  Code
 	ExpiresAt time.Time
 }
 
@@ -41,15 +42,19 @@ type Transaction struct {
 	Extra map[string]string // Extra metadata. e.g., Store "Codigo": "015", "Office": "0437"
 }
 
+// Currency represents a monetary currency code.
 type Currency string
 
+// Supported currencies.
 const (
 	CurrencyUSD Currency = "USD"
 	CurrencyPEN Currency = "PEN"
 )
 
+// TransactionType indicates whether a transaction is a credit or debit.
 type TransactionType string
 
+// Transaction type constants.
 const (
 	TransactionCredit TransactionType = "CREDIT" // CREDIT (money in)
 	TransactionDebit  TransactionType = "DEBIT"  // DEBIT (money out)

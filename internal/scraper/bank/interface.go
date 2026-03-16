@@ -4,15 +4,18 @@ package bank
 
 import "context"
 
-type BankScraper interface {
+// Scraper defines the interface for bank-specific scraping operations.
+type Scraper interface {
 	// Login authenticates with the bank and establishes a session
 	Login(ctx context.Context, session *Session, accountID string) (*Session, error)
 }
 
-type BankCode string
+// Code identifies a supported bank.
+type Code string
 
+// Supported bank codes.
 const (
-	BankBBVA      BankCode = "BBVA"
-	BankInterbank BankCode = "INTERBANK"
-	BankBCP       BankCode = "BCP"
+	BankBBVA      Code = "BBVA"
+	BankInterbank Code = "INTERBANK"
+	BankBCP       Code = "BCP"
 )
