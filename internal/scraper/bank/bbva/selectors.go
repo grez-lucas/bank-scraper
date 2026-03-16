@@ -66,8 +66,8 @@ const (
 	SelectorTxConcept         = `bbva-table-body-text.concept`
 	SelectorTxAmount          = `bbva-table-body-amount.transactionAmount`
 
-	// Accounts page — "Ver todos los movimientos" link container
-	SelectorViewAllMovements = `.o-few-accounts__table-view-all`
+	// Accounts page — "Ir al detalle de cuenta" footer link inside each card
+	SelectorCardFooterLink = `.c-card-product-select__footer bbva-type-link[role="link"]`
 
 	// Pagination — "Ver más" link in the table footer
 	SelectorLoadMoreButton = `bbva-table-footer.footer-link-text`

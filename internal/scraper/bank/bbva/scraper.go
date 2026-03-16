@@ -455,12 +455,14 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 
 	// Navigation phase — mimic real user flow:
 	// Direct URL navigation leaves the SPA's selectedAccount store empty → "undefined".
-	// Instead: accounts page → click account card → click "Ver todos los movimientos".
-	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
-	defer navCancel()
+	// Instead: accounts page → click "Ir al detalle de cuenta" on the target card.
+	// Each step gets its own context to avoid deadline exhaustion across steps.
 
 	// Step 1: Navigate to accounts page (reload clears prior FlattenShadowDOM mutations)
-	if err := navigateTo(navCtx, s.page, accountsURL); err != nil {
+	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
+	err := navigateTo(navCtx, s.page, accountsURL)
+	navCancel()
+	if err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
@@ -469,7 +471,7 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 		}
 	}
 
-	// Step 2: Wait for accounts to render, then click the target card
+	// Step 2: Wait for accounts to render (creates own internal context)
 	if !waitForAccountsReady(ctx, s.page, s.timeout) {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
@@ -479,40 +481,31 @@ func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string, cou
 		}
 	}
 
-	// Click the card matching this accountID (sets SPA selectedAccount state)
-	cardSelector := fmt.Sprintf(`%s#%s`, SelectorAccountCard, accountID)
-	if !browser.DeepQueryClick(s.page.Context(navCtx), cardSelector) {
+	// Step 3: Click "Ir al detalle de cuenta" on the card matching this accountID.
+	// Each card has a footer link that navigates directly to the account detail page,
+	// independent of the SPA's selectedAccount state. This avoids the bug where
+	// "Ver todos los movimientos" redirects based on stale SPA state.
+	if !waitAndClickAccountDetail(ctx, s.page, accountID, s.timeout) {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrAccountNotFound,
-			Details:   fmt.Sprintf("account card not found: %s", cardSelector),
+			Details:   fmt.Sprintf("could not find or click 'Ir al detalle de cuenta' for account %s", accountID),
 		}
 	}
 
-	// Step 3: Poll for "Ver todos los movimientos" link and click it.
-	// After the card click, the "Últimos movimientos" section renders
-	// asynchronously. Instead of a blanket WaitDOMStable, we poll until
-	// clickViewAllMovements succeeds (the link appears).
-	if !waitAndClickViewAll(navCtx, s.page) {
+	// Step 4: Wait for SPA hash navigation to account detail page
+	stableCtx, stableCancel := context.WithTimeout(ctx, s.timeout)
+	err = s.page.Context(stableCtx).WaitDOMStable(time.Second, 0)
+	stableCancel()
+	if err != nil {
 		return nil, &bank.ScraperError{
 			BankCode:  bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
-			Details:   "could not find or click 'Ver todos los movimientos' link",
+			Details:   fmt.Sprintf("DOM unstable after account detail click: %v", err),
 		}
 	}
-
-	// Wait for SPA hash navigation to transactions page
-	if err := s.page.Context(navCtx).WaitDOMStable(time.Second, 0); err != nil {
-		return nil, &bank.ScraperError{
-			BankCode:  bank.BankBBVA,
-			Operation: "GetTransactions",
-			Cause:     bank.ErrUnknown,
-			Details:   fmt.Sprintf("DOM unstable after view-all click: %v", err),
-		}
-	}
-	navCancel() // Navigation phase complete
 
 	// Wait for Web Components to finish rendering transaction rows.
 	if !waitForTransactionsReady(ctx, s.page, s.timeout) {
@@ -906,19 +899,19 @@ func dismissAnnouncementModal(ctx context.Context, page *rod.Page) {
 	}`, browser.DeepQueryJS, SelectorAnnouncementModal))
 }
 
-// clickViewAllMovements finds and clicks the "Ver todos los movimientos" link
-// on the accounts page. The link is inside shadow DOM, so we use deepQuery to
-// find the container, then querySelector within it for the link element.
-func clickViewAllMovements(ctx context.Context, page *rod.Page) bool {
+// clickAccountDetail finds and clicks the "Ir al detalle de cuenta" footer link
+// on the card matching the given accountID. Each card has a direct link that
+// navigates to the account detail page without depending on SPA selection state.
+func clickAccountDetail(ctx context.Context, page *rod.Page, accountID string) bool {
 	js := fmt.Sprintf(`() => {
 		%s
-		const container = deepQuery(document, '%s');
-		if (!container) return false;
-		const link = container.querySelector('bbva-type-link');
+		const card = deepQuery(document, '%s#%s');
+		if (!card) return false;
+		const link = deepQuery(card, '%s');
 		if (!link) return false;
 		link.click();
 		return true;
-	}`, browser.DeepQueryJS, SelectorViewAllMovements)
+	}`, browser.DeepQueryJS, SelectorAccountCard, accountID, SelectorCardFooterLink)
 
 	result, err := page.Context(ctx).Eval(js)
 	if err != nil {
@@ -927,19 +920,20 @@ func clickViewAllMovements(ctx context.Context, page *rod.Page) bool {
 	return result.Value.Bool()
 }
 
-// waitAndClickViewAll polls at 200ms intervals until clickViewAllMovements
-// succeeds. This replaces the blanket WaitDOMStable after clicking an account
-// card — the "Ver todos" link only appears once the "Últimos movimientos"
-// section finishes rendering.
-func waitAndClickViewAll(ctx context.Context, page *rod.Page) bool {
+// waitAndClickAccountDetail polls at 200ms intervals until clickAccountDetail
+// succeeds. The card's footer link only becomes clickable once the accounts
+// page has fully rendered.
+func waitAndClickAccountDetail(ctx context.Context, page *rod.Page, accountID string, timeout time.Duration) bool {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if clickViewAllMovements(ctx, page) {
+		if clickAccountDetail(waitCtx, page, accountID) {
 			return true
 		}
 		select {
-		case <-ctx.Done():
+		case <-waitCtx.Done():
 			return false
 		case <-ticker.C:
 		}
@@ -1004,6 +998,7 @@ func waitForAccountsReady(ctx context.Context, page *rod.Page, timeout time.Dura
 		}
 	}
 }
+
 
 func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, string) error) error {
 	companyInput, err := page.Element(SelectorCompanyInput)
