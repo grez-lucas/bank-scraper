@@ -4,6 +4,27 @@ ccred=$(shell printf "\033[0;31m")
 ccyellow=$(shell printf "\033[0;33m")
 ccend=$(shell printf "\033[0m")
 
+BIN_DIR := bin
+
+# ============================== #
+# BUILD
+# ============================== #
+
+## build: build main binary
+.PHONY: build
+build:
+	@mkdir -p $(BIN_DIR)
+	@printf "$(ccyellow)Building... $(ccend)\n"
+	go build -o $(BIN_DIR)/bank-scraper ./cmd/...
+	@printf "$(ccgreen)Build done! Binary at $(BIN_DIR)/bank-scraper$(ccend)\n"
+
+## clean: remove build artifacts
+.PHONY: clean
+clean:
+	@printf "$(ccyellow)Cleaning... $(ccend)\n"
+	rm -rf $(BIN_DIR)
+	@printf "$(ccgreen)Clean done!$(ccend)\n"
+
 # ============================== #
 # QUALITY CONTROL
 # ============================== #

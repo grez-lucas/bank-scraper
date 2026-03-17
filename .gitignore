@@ -9,3 +9,5 @@ tmp/*
 CLAUDE.md
 
 internal/scraper/bank/bbva/testdata/recordings/
+
+bin/
