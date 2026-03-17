@@ -60,7 +60,7 @@ test-live:
 	@printf "$(ccyellow)WARNING: This will hit live bank websites!$(ccend)\n" && \
 	read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] && \
 	set -a && . ./.env && set +a && \
-	SCRAPER_TEST_MODE=live go test ./internal/scraper/bank/bbva/... -v -run TestBBVAScraper_Live -count=1
+	SCRAPER_TEST_MODE=live go test ./internal/scraper/bank/bbva/... -v -run TestScraper_Live -count=1
 
 ## test/cover: run all tests and display coverage
 .PHONY: test/cover
