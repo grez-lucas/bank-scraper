@@ -8,4 +8,4 @@ tmp/*
 
 CLAUDE.md
 
-testdata/recordings/*
+internal/scraper/bank/bbva/testdata/recordings/
