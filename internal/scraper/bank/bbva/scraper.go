@@ -134,7 +134,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 	page, err := s.browser.Page(proto.TargetCreateTarget{URL: loginURL})
 	if err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   err.Error(),
@@ -194,7 +194,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 	loginBtn, err := p.Element(SelectorLoginButton)
 	if err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("login button not found: %v", err),
@@ -202,7 +202,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 	}
 	if err := loginBtn.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("failed to click login: %v", err),
@@ -219,7 +219,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 			// Live mode: wait for the SPA to set the dashboard route hash
 			if !s.waitForDashboard(ctx, page) {
 				return nil, &bank.ScraperError{
-					Code:  bank.BankBBVA,
+					Code:      bank.BankBBVA,
 					Operation: "Login",
 					Cause:     bank.ErrUnknown,
 					Details:   "login completed but dashboard did not load",
@@ -230,7 +230,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 
 	case loginError:
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "Login",
 			Cause:     classifySendaError(result.errorText),
 			Details:   result.errorText,
@@ -251,7 +251,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 			pageURL = info.URL
 		}
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "Login",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("login timed out waiting for redirect or error (url=%s, screenshot=%s)", pageURL, screenshotPath),
@@ -261,7 +261,7 @@ func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, 
 	// Store session and page for subsequent operations
 	session := &bank.Session{
 		ID:        generateSessionID(),
-		Code:  bank.BankBBVA,
+		Code:      bank.BankBBVA,
 		ExpiresAt: time.Now().Add(bbvaSessionTimeout),
 	}
 	s.session = session
@@ -292,11 +292,171 @@ func (s *Scraper) stopHijacker() {
 	}
 }
 
+// Logout performs a clean logout from the BBVA portal by clicking the
+// sidebar "Salir" button, confirming the logout modal, and waiting for
+// the page to redirect away from the portal. After a successful logout,
+// the session and page are cleared; subsequent GetBalance/GetTransactions
+// calls will return ErrSessionExpired.
+func (s *Scraper) Logout(ctx context.Context) error {
+	if s.page == nil {
+		return &bank.ScraperError{
+			Code:      bank.BankBBVA,
+			Operation: "Logout",
+			Cause:     bank.ErrSessionExpired,
+			Details:   "no active session — call Login first",
+		}
+	}
+
+	logoutCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	page := s.page.Context(logoutCtx)
+
+	debugDir := filepath.Join(os.TempDir(), "bbva-debug")
+	_ = os.MkdirAll(debugDir, 0o755)
+
+	s.logger.Info("starting logout")
+
+	// Step 0: Dismiss the announcement modal if present
+	dismissAnnouncementModal(logoutCtx, page)
+
+	// Step 1: Click "Salir" button (inside nested shadow DOM)
+	if !browser.DeepQueryClick(page, SelectorLogoutButton) {
+		return &bank.ScraperError{
+			Code:      bank.BankBBVA,
+			Operation: "Logout",
+			Cause:     bank.ErrUnknown,
+			Details:   "could not find or click 'Salir' button",
+		}
+	}
+	s.logger.Info("clicked 'Salir' button")
+
+	// Step 2: Wait for confirmation modal to become visible
+	if !waitForLogoutModal(logoutCtx, page) {
+		return &bank.ScraperError{
+			Code:      bank.BankBBVA,
+			Operation: "Logout",
+			Cause:     bank.ErrUnknown,
+			Details:   "logout confirmation modal did not appear",
+		}
+	}
+	s.logger.Info("logout modal visible")
+
+	// Step 3: Click "Cerrar sesión" confirm button inside the modal.
+	//
+	// The button is a Polymer web component (.action-btn). Calling .click()
+	// via deepQuery triggers the full logout flow: the Polymer handler sends
+	// a DELETE to grantingTicket/V02 (server-side session invalidation) plus
+	// cleanup requests (campaigns, session-records).
+	//
+	// In headless Chrome the Cells framework's redirect after the DELETE
+	// doesn't fire reliably, so we navigate to the login page ourselves.
+	time.Sleep(500 * time.Millisecond) // let modal CSS animation complete
+
+	s.logger.Info("clicking confirm button")
+
+	clickJS := fmt.Sprintf(`(function() {
+		%s
+		var modal = deepQuery(document, '%s');
+		if (!modal) return 'modal not found';
+		var btn = deepQuery(modal, '.action-btn');
+		if (!btn) return 'button not found';
+		btn.click();
+		return 'clicked';
+	})()`, browser.DeepQueryJS, SelectorLogoutModal)
+
+	clickResult, clickErr := proto.RuntimeEvaluate{
+		Expression:    clickJS,
+		ReturnByValue: true,
+	}.Call(page)
+	if clickErr != nil {
+		return &bank.ScraperError{
+			Code:      bank.BankBBVA,
+			Operation: "Logout",
+			Cause:     clickErr,
+			Details:   "failed to evaluate confirm button click",
+		}
+	}
+	resultStr := ""
+	if clickResult != nil && clickResult.Result != nil {
+		resultStr = clickResult.Result.Value.Str()
+	}
+	if resultStr != "clicked" {
+		return &bank.ScraperError{
+			Code:      bank.BankBBVA,
+			Operation: "Logout",
+			Cause:     bank.ErrUnknown,
+			Details:   fmt.Sprintf("confirm button click failed: %s", resultStr),
+		}
+	}
+	s.logger.Info("confirm button clicked")
+
+	// Step 4: Wait for redirect, or navigate to login page ourselves.
+	// The DELETE completes in <1s; give the Cells redirect 3s to fire.
+	redirectCtx, redirectCancel := context.WithTimeout(logoutCtx, 3*time.Second)
+	defer redirectCancel()
+	if !waitForLogoutRedirect(redirectCtx, s.page) {
+		// Headless Chrome doesn't complete the Cells redirect — navigate ourselves.
+		// The server-side session is already invalidated by the DELETE above.
+		s.logger.Info("completing redirect to login page")
+		if navErr := s.page.Navigate(loginURL); navErr != nil {
+			return &bank.ScraperError{
+				Code:      bank.BankBBVA,
+				Operation: "Logout",
+				Cause:     navErr,
+				Details:   "failed to navigate to login page after logout",
+			}
+		}
+	}
+	s.logger.Info("logout redirect complete")
+
+	// Step 5: Clean up — stop hijacker, close page, clear session
+	s.stopHijacker()
+	_ = s.page.Close()
+	s.page = nil
+	s.session = nil
+
+	s.logger.Info("logout completed")
+	return nil
+}
+
+// waitForLogoutModal polls until the logout confirmation modal becomes visible.
+func waitForLogoutModal(ctx context.Context, page *rod.Page) bool {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if browser.DeepQueryExists(page, SelectorLogoutModal) {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
+// waitForLogoutRedirect polls until the page URL no longer contains PortalPath.
+func waitForLogoutRedirect(ctx context.Context, page *rod.Page) bool {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		info, err := page.Info()
+		if err == nil && !strings.Contains(info.URL, PortalPath) {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
 // GetBalance fetches balances for all accounts.
 func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	if s.page == nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrSessionExpired,
 			Details:   "no active session — call Login first",
@@ -308,7 +468,7 @@ func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	defer navCancel()
 	if err := navigateTo(navCtx, s.page, accountsURL); err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("navigate to accounts: %v", err),
@@ -402,7 +562,7 @@ func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 			pageURL = info.URL
 		}
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("timed out waiting for accounts to render (url=%s, debug=%s, diag=%s)", pageURL, debugDir, diagJSON),
@@ -415,7 +575,7 @@ func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 	html, _, _, err := browser.FlattenShadowDOM(s.page.Context(flattenCtx))
 	if err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("flatten shadow DOM: %v", err),
@@ -429,7 +589,7 @@ func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 		debugPath := filepath.Join(debugDir, "balances-debug.html")
 		_ = os.WriteFile(debugPath, []byte(html), 0o644)
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     err,
 			Details:   fmt.Sprintf("parse account balances failed (debug HTML dumped to %s)", debugPath),
@@ -450,7 +610,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 
 	if s.page == nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrSessionExpired,
 			Details:   "no active session — call Login first",
@@ -468,7 +628,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	navCancel()
 	if err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrBankUnavailable,
 			Details:   fmt.Sprintf("navigate to accounts: %v", err),
@@ -478,7 +638,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	// Step 2: Wait for accounts to render (creates own internal context)
 	if !waitForAccountsReady(ctx, s.page, s.timeout) {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   "timed out waiting for accounts page to render",
@@ -491,7 +651,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	// "Ver todos los movimientos" redirects based on stale SPA state.
 	if !waitAndClickAccountDetail(ctx, s.page, accountID, s.timeout) {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrAccountNotFound,
 			Details:   fmt.Sprintf("could not find or click 'Ir al detalle de cuenta' for account %s", accountID),
@@ -504,7 +664,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	stableCancel()
 	if err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("DOM unstable after account detail click: %v", err),
@@ -526,7 +686,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 			pageURL = info.URL
 		}
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("timed out waiting for transactions table to render (url=%s, screenshot=%s)", pageURL, screenshotPath),
@@ -542,7 +702,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	for i := 0; i < maxPaginationClicks; i++ {
 		if loopCtx.Err() != nil {
 			return nil, &bank.ScraperError{
-				Code:  bank.BankBBVA,
+				Code:      bank.BankBBVA,
 				Operation: "GetTransactions",
 				Cause:     bank.ErrUnknown,
 				Details:   "context cancelled during pagination",
@@ -623,7 +783,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	html, err := browser.DeepQueryHTML(s.page.Context(extractCtx), SelectorTransactionsTable)
 	if err != nil {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
 			Details:   fmt.Sprintf("extract transactions table HTML: %v", err),
@@ -631,7 +791,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	}
 	if html == "" {
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrParsingFailed,
 			Details:   "transactions table not found via deepQuery",
@@ -645,7 +805,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 		debugPath := filepath.Join(debugDir, "transactions-debug.html")
 		_ = os.WriteFile(debugPath, []byte(html), 0o644)
 		return nil, &bank.ScraperError{
-			Code:  bank.BankBBVA,
+			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     err,
 			Details:   fmt.Sprintf("parse transactions failed (debug HTML dumped to %s)", debugPath),
@@ -1002,7 +1162,6 @@ func waitForAccountsReady(ctx context.Context, page *rod.Page, timeout time.Dura
 		}
 	}
 }
-
 
 func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, string) error) error {
 	companyInput, err := page.Element(SelectorCompanyInput)

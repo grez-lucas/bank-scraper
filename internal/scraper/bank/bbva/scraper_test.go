@@ -332,6 +332,49 @@ func TestScraper_GetTransactions_Replay_Integration(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), tx0.Date, 365*24*time.Hour)
 }
 
+func TestScraper_Logout_NoSession(t *testing.T) {
+	scraper, err := NewScraper(WithTimeout(5 * time.Second))
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	err = scraper.Logout(context.Background())
+
+	require.Error(t, err)
+	var scraperErr *bank.ScraperError
+	require.ErrorAs(t, err, &scraperErr)
+	assert.Equal(t, "Logout", scraperErr.Operation)
+	assert.Equal(t, bank.BankBBVA, scraperErr.Code)
+	require.ErrorIs(t, err, bank.ErrSessionExpired)
+}
+
+func TestScraper_GetBalance_NoSession(t *testing.T) {
+	scraper, err := NewScraper(WithTimeout(5 * time.Second))
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	_, err = scraper.GetBalance(context.Background())
+
+	require.Error(t, err)
+	var scraperErr *bank.ScraperError
+	require.ErrorAs(t, err, &scraperErr)
+	assert.Equal(t, "GetBalance", scraperErr.Operation)
+	require.ErrorIs(t, err, bank.ErrSessionExpired)
+}
+
+func TestScraper_GetTransactions_NoSession(t *testing.T) {
+	scraper, err := NewScraper(WithTimeout(5 * time.Second))
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	_, err = scraper.GetTransactions(context.Background(), "any-account", 50)
+
+	require.Error(t, err)
+	var scraperErr *bank.ScraperError
+	require.ErrorAs(t, err, &scraperErr)
+	assert.Equal(t, "GetTransactions", scraperErr.Operation)
+	require.ErrorIs(t, err, bank.ErrSessionExpired)
+}
+
 func TestClassifySendaError(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -518,6 +561,39 @@ func TestScraper_Live_GetTransactions_FirstAccount(t *testing.T) {
 	txns, err := scraper.GetTransactions(ctx, accountID, 200)
 	require.NoError(t, err, "GetTransactions failed for account %s", accountID)
 	assertTransactions(t, txns)
+}
+
+func TestScraper_Live_Logout(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+	creds := requireLiveCreds(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+
+	scraper, err := NewScraper(WithTimeout(60 * time.Second))
+	require.NoError(t, err)
+	defer func() { _ = scraper.Close() }()
+
+	// Login
+	session, err := scraper.Login(ctx, creds)
+	require.NoError(t, err, "Login failed")
+	require.NotEmpty(t, session.ID)
+	t.Logf("Login OK — session=%s", session.ID)
+
+	// Logout
+	err = scraper.Logout(ctx)
+	require.NoError(t, err, "Logout failed")
+	t.Log("Logout OK")
+
+	// Verify session state is cleared
+	assert.Nil(t, scraper.page, "Page should be nil after logout")
+	assert.Nil(t, scraper.session, "Session should be nil after logout")
+
+	// Verify GetBalance returns ErrSessionExpired after logout
+	_, err = scraper.GetBalance(ctx)
+	require.Error(t, err)
+	require.ErrorIs(t, err, bank.ErrSessionExpired)
+	t.Log("GetBalance correctly returns ErrSessionExpired after logout")
 }
 
 func TestScraper_Live_GetTransactions_SecondAccount(t *testing.T) {

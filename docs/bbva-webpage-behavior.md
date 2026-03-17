@@ -45,6 +45,18 @@ BBVA loads different sections of the portal as independent micro-applications in
 
 The scraper's `FlattenShadowDOM()` function inlines all shadow content into the light DOM as `<div data-shadow-root="true">` containers, making it accessible to goquery parsers.
 
+### Three DOM Boundaries
+
+Post-login BBVA pages have **three** types of DOM boundaries that standard `querySelector` cannot cross:
+
+1. **Shadow DOM** — `element.shadowRoot` contains private DOM
+2. **Light DOM (slotted)** — Polymer projects light DOM children into shadow tree via `<slot>`; these are on `host.children`, NOT `shadowRoot.children`
+3. **Iframes** — micro-frontends load content in same-origin `<iframe>` elements nested inside shadow roots
+
+All three boundaries must be crossed when searching for elements or flattening the DOM. The `deepQuery` helper in `browser/query.go` and `FlattenShadowDOM` in `browser/shadow.go` both handle all three.
+
+**Critical**: `FlattenShadowDOM()` **mutates the live DOM**. After calling it, the SPA's shadow DOM structure is destroyed. Hash-only URL changes (SPA routing) will NOT reload the page, so the SPA cannot recover. `navigateTo` forces a full page reload by navigating to `about:blank` first to clear any DOM mutations.
+
 ## Shadow DOM Architecture
 
 ### Post-Login Component Tree
@@ -132,7 +144,7 @@ The table container is `bbva-btge-accounts-solution-table#moviments-table`. Key 
 | Attribute | Has Data | Empty |
 |-----------|----------|-------|
 | `total-items` | `"56"` | `"0"` |
-| `state` | `""` | `"noresults"` |
+| `state` | `""` | `"noresults"` (or bank error page — see below) |
 
 The `<tbody>` contains two kinds of `<tr>` elements:
 
@@ -163,6 +175,14 @@ Each transaction row has these cells:
 **Date format:** Two attributes (`date` + `year`) combine to `"10 Feb 2026"`, parsed with Go layout `"02 Jan 2006"`. This replaces the old `DD-MM-YYYY` format.
 
 **Removed columns:** The old "Oficina" (branch office) column no longer exists in the 2026 table.
+
+#### Transactions Error State
+
+The bank may return a transient error page: **"La información no está disponible — En este momento no podemos mostrarte la información de tus movimientos."** When this happens:
+- The table container exists but shows the error message instead of rows
+- The table may have a non-empty `state` attribute (different from `"noresults"`)
+- The `waitForTransactionsReady` function treats any non-empty `state` attribute as a terminal state to avoid a 30s timeout
+- The parser finds 0 `tr.row[data-actionable]` rows and returns an empty transaction slice
 
 #### Parsing Strategy
 
@@ -369,6 +389,43 @@ The response body may contain Akamai challenge JavaScript.
 3. Randomize typing speed
 4. Avoid rapid repeated login attempts
 
+## Login Rate Limiting (Silent Timeout)
+
+### Behavior
+
+After ~3 successful logins in rapid succession (e.g., sequential test runs), BBVA silently stops responding to the Senda API authentication call. The login page remains fully functional — credentials are filled, `#enviarSenda` is clicked — but **nothing happens**:
+
+- No redirect to the portal (no URL change)
+- No `span#error-message` text (no visible error)
+- No HTTP error (no 403, no 5xx)
+- The Senda `grantingTicket/V02` call simply never returns
+
+The scraper's `waitForLoginOutcome` polls for both success (URL redirect) and failure (`span#error-message`), but neither signal arrives, causing a timeout.
+
+### Screenshot Evidence
+
+Debug screenshot (`/tmp/bbva-debug/login-timeout.png`) shows: login form with credentials filled, field validation hints displayed ("El código de empresa tiene 8 caracteres"), but no error message and no redirect — the page is stuck.
+
+### Distinguishing from Other Failures
+
+| Failure Mode | Error Visible? | URL Changes? | HTTP Error? |
+|--------------|---------------|--------------|-------------|
+| Invalid credentials | `span#error-message` shows text | No | Senda 403 |
+| Bot detection (Akamai) | Akamai challenge page | No | HTTP 403 |
+| **Rate limiting** | **Nothing — silent** | **No** | **No** |
+| Bank unavailable | `span#error-message` "no disponible" | No | Varies |
+
+### Trigger Threshold
+
+Observed: 3rd or 4th login in quick succession (~1-2 minutes apart) triggers the silent block. The exact threshold is unknown and may vary. The block appears to be temporary (minutes, not hours).
+
+### Scraper Impact
+
+The scraper currently returns a generic timeout error. There is no way to distinguish this from other timeout causes (slow network, page load hang) because BBVA provides no signal. Possible mitigations:
+- Add delays between sequential logins (relevant for test suites)
+- Detect the "filled form, no response" state and return a more specific error
+- Implement retry with exponential backoff for login timeouts
+
 ## HAR Replay Testing
 
 ### Recording Requirements
@@ -463,15 +520,58 @@ After login (and sometimes on page navigation), a news/announcement modal (`bbva
 **Fixtures with modal open**: `login_popup.html`, `dashboard_news_popup.html`, `accounts_news_popup.html`
 **Fixtures without modal**: `dashboard.html`, `accounts_list.html`, `transactions.html`
 
-**Shadow DOM note**: In the live browser, `button.close-btn` may live inside shadow DOM. Rod can traverse shadow boundaries via CDP. If the CSS selector doesn't cross shadow boundaries at runtime, fall back to `modal.ShadowRoot().Element("button.close-btn")`.
+**Shadow DOM note**: The modal's close/action buttons live inside **nested shadow roots** (e.g., `modal → shadowRoot → bbva-button → shadowRoot → <button>`). Standard CSS selectors (`page.Element(...)`) and `Element.matches()` with descendant selectors cannot cross shadow boundaries. The scraper uses `deepQuery(modal, 'button')` to walk the modal's entire shadow tree and click the first button found. See `browser/query.go` for the `deepQuery` implementation.
+
+### Announcement Modal on Accounts Page
+
+The announcement modal also appears on the **accounts page** after navigation (not just after login). It shows "Nueva sección de cuentas" with a "Continuar" button. The SPA may defer loading account content until the modal is dismissed. `navigateTo` calls `dismissAnnouncementModal` after every navigation to handle this.
 
 ## Logout Flow
 
-Logout is no longer a direct link/redirect:
+Logout is a multi-step UI interaction, not a direct link/redirect:
 
-1. Click logout button in the sidebar
-2. Confirmation modal appears ("Are you sure?")
-3. Confirm to complete logout
+### Steps
+
+1. **Dismiss announcement modal** if present (same modal as post-login)
+2. **Click "Salir"** button in the sidebar — `bbva-web-navigation-menu-item-action.exit` (inside nested shadow DOM, use `DeepQueryClick`)
+3. **Wait for confirmation modal** — `bbva-web-template-modal#template-modal-logout[visible]`
+4. **Click "Cerrar sesión"** confirm button (`.action-btn`) — triggers server-side logout
+5. **Wait for redirect** to login page, or navigate there ourselves
+
+### Server-Side Session Invalidation
+
+Clicking the confirm button triggers the Polymer handler chain:
+- `_onButtonClick()` on the modal dispatches `CustomEvent("button-click", {bubbles: true})` (no `composed`)
+- The sidebar's Polymer template has a declarative listener (`on-button-click`) that catches it
+- The handler sends a `DELETE https://asosenda.bbva.pe/TechArchitecture/pe/grantingTicket/V02` with the `tsec` JWT header
+- Additional cleanup requests fire: `campaigns/v1/offers` (GET), `business-authentication/v0/session-records` (POST)
+- The DELETE returns `204 No Content` — session is invalidated server-side
+
+### Confirm Button Click Details
+
+The confirm button is a **Polymer web component** (`bbva-web-button-default-NNNNN`) with no native `<button>` inside its shadow root. Key findings from investigation:
+
+- **JS `.click()` works** — confirmed in both Chrome and Firefox DevTools consoles
+- **Rod `page.Eval()` with `.click()` also works** — the click event fires, the DELETE is sent (confirmed via XHR interception)
+- **Headless Chrome doesn't complete the Cells framework redirect** after the DELETE — the page stays on the portal URL
+- **Fix**: after clicking, wait briefly for the redirect, then navigate to `loginURL` ourselves if needed
+
+The `.click()` call uses `proto.RuntimeEvaluate` with a raw IIFE expression containing `deepQuery` to find the button inside the modal's shadow DOM.
+
+### Selectors
+
+```
+SelectorLogoutButton = bbva-web-navigation-menu-item-action.exit
+SelectorLogoutModal  = bbva-web-template-modal#template-modal-logout[visible]
+```
+
+### HAR Recording
+
+The logout HAR (`testdata/recordings/logout_flow.har.json`) captures:
+1. POST grantingTicket/V02 (pre-auth, authenticationType=61)
+2. DELETE grantingTicket/V02 (clear pre-auth token, 204)
+3. POST grantingTicket/V02 (auth with credentials, authenticationType=16)
+4. DELETE grantingTicket/V02 (actual logout, status 0 = browser navigated away)
 
 ## Scraper Impact
 
