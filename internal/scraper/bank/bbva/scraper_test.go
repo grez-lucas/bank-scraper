@@ -612,3 +612,185 @@ func TestScraper_Live_GetTransactions_SecondAccount(t *testing.T) {
 	require.NoError(t, err, "GetTransactions failed for account %s", accountID)
 	assertTransactions(t, txns)
 }
+
+// --- Session Reuse Live Tests ---
+// These tests validate that chaining multiple operations on a single session works correctly.
+// The key concern is that FlattenShadowDOM mutates the live DOM, and navigateTo with cache-busting
+// must fully reset the page state between operations.
+
+func TestScraper_Live_SessionReuse_DoubleGetBalance(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cancel()
+
+	scraper, balances1 := loginAndGetAccounts(t, ctx)
+	defer func() { _ = scraper.Close() }()
+
+	t.Log("Calling GetBalance a second time on the same session...")
+	balances2, err := scraper.GetBalance(ctx)
+	require.NoError(t, err, "Second GetBalance failed")
+	require.Len(t, balances2, len(balances1), "Account count should be consistent")
+
+	for i := range balances1 {
+		assert.Equal(t, balances1[i].AccountID, balances2[i].AccountID,
+			"Account[%d] ID should match across calls", i)
+		assert.Equal(t, balances1[i].Currency, balances2[i].Currency,
+			"Account[%d] Currency should match across calls", i)
+	}
+
+	for i, b := range balances2 {
+		t.Logf("  [%d] %s %s available=%d current=%d",
+			i, b.Currency, b.AccountID, b.AvailableBalance, b.CurrentBalance)
+	}
+}
+
+func TestScraper_Live_SessionReuse_BalanceAfterTransactions(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	scraper, balances1 := loginAndGetAccounts(t, ctx)
+	defer func() { _ = scraper.Close() }()
+
+	// GetTransactions for first account
+	accountID := balances1[0].AccountID
+	t.Logf("GetTransactions for %s (%s)...", accountID, balances1[0].Currency)
+	txns, err := scraper.GetTransactions(ctx, accountID, 50)
+	require.NoError(t, err, "GetTransactions failed")
+	assertTransactions(t, txns)
+
+	// GetBalance again — navigates back to accounts page
+	t.Log("Calling GetBalance after GetTransactions...")
+	balances2, err := scraper.GetBalance(ctx)
+	require.NoError(t, err, "GetBalance after GetTransactions failed")
+	require.Len(t, balances2, len(balances1), "Account count should be consistent")
+
+	for i := range balances1 {
+		assert.Equal(t, balances1[i].AccountID, balances2[i].AccountID,
+			"Account[%d] ID should match after round-trip", i)
+		assert.Equal(t, balances1[i].Currency, balances2[i].Currency,
+			"Account[%d] Currency should match after round-trip", i)
+	}
+}
+
+func TestScraper_Live_SessionReuse_TransactionsDifferentAccounts(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	scraper, balances := loginAndGetAccounts(t, ctx)
+	defer func() { _ = scraper.Close() }()
+	require.GreaterOrEqual(t, len(balances), 2, "Need at least 2 accounts")
+
+	// GetTransactions for first account
+	acct1 := balances[0].AccountID
+	t.Logf("GetTransactions for account 1: %s (%s)...", acct1, balances[0].Currency)
+	txns1, err := scraper.GetTransactions(ctx, acct1, 50)
+	require.NoError(t, err, "GetTransactions(acct1) failed")
+	assertTransactions(t, txns1)
+
+	// GetTransactions for second account — switches accounts within same session
+	acct2 := balances[1].AccountID
+	t.Logf("GetTransactions for account 2: %s (%s)...", acct2, balances[1].Currency)
+	txns2, err := scraper.GetTransactions(ctx, acct2, 50)
+	require.NoError(t, err, "GetTransactions(acct2) failed")
+	assertTransactions(t, txns2)
+
+	// Warn if first transactions are identical (would indicate stale SPA state)
+	if len(txns1) > 0 && len(txns2) > 0 &&
+		txns1[0].Description == txns2[0].Description &&
+		txns1[0].Amount == txns2[0].Amount &&
+		txns1[0].Date.Equal(txns2[0].Date) {
+		t.Log("WARNING: First transactions from both accounts are identical — possible stale SPA state")
+	}
+}
+
+func TestScraper_Live_SessionReuse_TransactionsSameAccountTwice(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	scraper, balances := loginAndGetAccounts(t, ctx)
+	defer func() { _ = scraper.Close() }()
+
+	accountID := balances[0].AccountID
+	t.Logf("GetTransactions (call 1) for %s...", accountID)
+	txns1, err := scraper.GetTransactions(ctx, accountID, 50)
+	require.NoError(t, err, "First GetTransactions failed")
+	assertTransactions(t, txns1)
+
+	t.Logf("GetTransactions (call 2) for same account %s...", accountID)
+	txns2, err := scraper.GetTransactions(ctx, accountID, 50)
+	require.NoError(t, err, "Second GetTransactions failed")
+	assertTransactions(t, txns2)
+
+	// Idempotency: same account should return same transaction count and data
+	assert.Equal(t, len(txns1), len(txns2), "Transaction count should be identical for same account")
+	if len(txns1) > 0 && len(txns2) > 0 {
+		assert.Equal(t, txns1[0].Description, txns2[0].Description,
+			"First transaction description should match")
+		assert.Equal(t, txns1[0].Amount, txns2[0].Amount,
+			"First transaction amount should match")
+		last1 := txns1[len(txns1)-1]
+		last2 := txns2[len(txns2)-1]
+		assert.Equal(t, last1.Description, last2.Description,
+			"Last transaction description should match")
+		assert.Equal(t, last1.Amount, last2.Amount,
+			"Last transaction amount should match")
+	}
+}
+
+func TestScraper_Live_SessionReuse_FullWorkflow(t *testing.T) {
+	skipUnlessMode(t, TestModeLive)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	scraper, balances1 := loginAndGetAccounts(t, ctx)
+	defer func() { _ = scraper.Close() }()
+	require.GreaterOrEqual(t, len(balances1), 2, "Need at least 2 accounts")
+
+	// Step 1: GetTransactions for first account
+	acct1 := balances1[0].AccountID
+	t.Logf("Step 1: GetTransactions for %s (%s)...", acct1, balances1[0].Currency)
+	txns1, err := scraper.GetTransactions(ctx, acct1, 50)
+	require.NoError(t, err, "GetTransactions(acct1) failed")
+	assertTransactions(t, txns1)
+
+	// Step 2: GetTransactions for second account
+	acct2 := balances1[1].AccountID
+	t.Logf("Step 2: GetTransactions for %s (%s)...", acct2, balances1[1].Currency)
+	txns2, err := scraper.GetTransactions(ctx, acct2, 50)
+	require.NoError(t, err, "GetTransactions(acct2) failed")
+	assertTransactions(t, txns2)
+
+	// Step 3: GetBalance again — full round-trip back to accounts page
+	t.Log("Step 3: GetBalance after two GetTransactions calls...")
+	balances2, err := scraper.GetBalance(ctx)
+	require.NoError(t, err, "Final GetBalance failed")
+	require.Len(t, balances2, len(balances1), "Account count should be consistent")
+	for i := range balances1 {
+		assert.Equal(t, balances1[i].AccountID, balances2[i].AccountID,
+			"Account[%d] ID should match after full workflow", i)
+		assert.Equal(t, balances1[i].Currency, balances2[i].Currency,
+			"Account[%d] Currency should match after full workflow", i)
+	}
+
+	// Step 4: Logout
+	t.Log("Step 4: Logout...")
+	err = scraper.Logout(ctx)
+	require.NoError(t, err, "Logout failed")
+	assert.Nil(t, scraper.page, "Page should be nil after logout")
+	assert.Nil(t, scraper.session, "Session should be nil after logout")
+	t.Log("Logout OK")
+
+	// Step 5: Verify session is invalidated
+	_, err = scraper.GetBalance(ctx)
+	require.Error(t, err, "GetBalance should fail after logout")
+	require.ErrorIs(t, err, bank.ErrSessionExpired, "Should get ErrSessionExpired after logout")
+	t.Log("Post-logout GetBalance correctly returns ErrSessionExpired")
+}
