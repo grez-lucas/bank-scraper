@@ -1,0 +1,7 @@
+.env
+.git
+bin/
+tmp/
+coverage.out
+*.png
+internal/scraper/bank/bbva/testdata/recordings/

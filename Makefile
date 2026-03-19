@@ -137,6 +137,25 @@ db-version:
 	go run ./cmd/credmgr version
 
 # ============================== #
+# CREDENTIAL MANAGER
+# ============================== #
+
+## seed-admin: create an admin user (interactive)
+.PHONY: seed-admin
+seed-admin:
+	go run ./cmd/credmgr seed-admin
+
+## credmgr-serve: start the credential manager web UI
+.PHONY: credmgr-serve
+credmgr-serve:
+	go run ./cmd/credmgr serve
+
+## docker-build: build the credential manager Docker image
+.PHONY: docker-build
+docker-build:
+	docker build -t bank-scraper-credmgr .
+
+# ============================== #
 # FIXTURES
 # ============================== #
 

@@ -145,18 +145,17 @@ func (h *CredentialHandler) Delete(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/credentials")
 }
 
-// Test validates credentials against the bank.
+// Test validates stored credentials against the bank by decrypting and attempting login.
 func (h *CredentialHandler) Test(c *gin.Context) {
-	cred := parsePlaintextCredential(c)
-	// If form fields are empty (e.g., from list page test button), redirect back
-	if cred.BankCode == "" {
-		setFlash(c, "error", "Cannot test: credential fields not provided")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		c.Redirect(http.StatusFound, "/credentials")
 		return
 	}
 
-	if err := h.creds.Test(c.Request.Context(), cred); err != nil {
-		h.log.Error("credential test failed", slog.Any("error", err))
+	user := middleware.GetUser(c)
+	if err := h.creds.TestByID(c.Request.Context(), id, user.ID, c.ClientIP(), c.Request.UserAgent()); err != nil {
+		h.log.Error("credential test failed", slog.String("id", id.String()), slog.Any("error", err))
 		setFlash(c, "error", "Credential test failed. The bank login did not succeed.")
 	} else {
 		setFlash(c, "success", "Credential test passed!")

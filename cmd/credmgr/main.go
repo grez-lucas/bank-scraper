@@ -110,7 +110,8 @@ func serve(cfg *config.Config) error {
 	// Create services
 	aw := service.NewAuditWriter(auditRepo, logger)
 	authSvc := service.NewAuthService(userRepo, sessionRepo, aw, mk, cfg.SessionTTL, logger)
-	credSvc := service.NewCredentialService(credRepo, aw, mk, nil, logger) // tester=nil for now
+	tester := service.NewScraperCredentialTester()
+	credSvc := service.NewCredentialService(credRepo, aw, mk, tester, logger)
 
 	// Setup and start router
 	router := handler.SetupRouter(authSvc, credSvc, auditRepo, aw, logger)

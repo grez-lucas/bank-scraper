@@ -179,6 +179,30 @@ func (s *CredentialService) Test(ctx context.Context, cred PlaintextCredential) 
 	return s.tester.TestCredentials(ctx, cred.BankCode, cred.Fields)
 }
 
+// TestByID fetches a stored credential by ID, decrypts it, and tests it against the bank.
+func (s *CredentialService) TestByID(ctx context.Context, id uuid.UUID, userID uuid.UUID, ip, ua string) error {
+	if s.tester == nil {
+		return fmt.Errorf("credential testing not configured")
+	}
+
+	stored, err := s.creds.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("get credential: %w", err)
+	}
+
+	fields, err := s.decryptFields(stored.CredentialsEnc, stored.CredentialsDEK)
+	if err != nil {
+		return fmt.Errorf("decrypt credential: %w", err)
+	}
+
+	testErr := s.tester.TestCredentials(ctx, stored.BankCode, fields)
+
+	s.aw.Log(ctx, &userID, "credential_tested", "credential", id.String(), ip, ua, testErr == nil,
+		map[string]any{"bank_code": stored.BankCode})
+
+	return testErr
+}
+
 // encryptFields marshals credential fields to JSON and encrypts with envelope encryption.
 func (s *CredentialService) encryptFields(fields map[string]string) (encData, encDEK []byte, err error) {
 	plaintext, err := json.Marshal(fields)
@@ -190,5 +214,18 @@ func (s *CredentialService) encryptFields(fields map[string]string) (encData, en
 		return nil, nil, fmt.Errorf("encrypt fields: %w", err)
 	}
 	return encData, encDEK, nil
+}
+
+// decryptFields decrypts and unmarshals credential fields from the database.
+func (s *CredentialService) decryptFields(encData, encDEK []byte) (map[string]string, error) {
+	plaintext, err := crypto.Open(s.mk, encData, encDEK)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt fields: %w", err)
+	}
+	var fields map[string]string
+	if err := json.Unmarshal(plaintext, &fields); err != nil {
+		return nil, fmt.Errorf("unmarshal fields: %w", err)
+	}
+	return fields, nil
 }
 
