@@ -729,12 +729,12 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	}
 	loopCancel()
 
-	// Extract just the transactions table HTML via deepQuery — much faster
-	// than flattening the entire page DOM. The parser only reads attributes
-	// on custom elements (light DOM), so shadow DOM flattening isn't needed.
+	// Extract the transactions table HTML via deepQuery — clones the subtree
+	// and flattens shadow DOM on the clone, leaving the live DOM intact so the
+	// SPA framework can still navigate to other routes afterward.
 	extractCtx, extractCancel := context.WithTimeout(ctx, s.timeout)
 	defer extractCancel()
-	html, err := browser.DeepQueryHTML(s.page.Context(extractCtx), SelectorTransactionsTable)
+	html, err := browser.DeepQueryOuterHTML(s.page.Context(extractCtx), SelectorTransactionsTable)
 	if err != nil {
 		s.debug.Screenshot(s.page, "GetTransactions", "extract-error")
 		op.Error("extract transactions table HTML failed", err)

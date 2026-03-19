@@ -190,6 +190,45 @@ func DeepQueryHTML(page *rod.Page, selector string) (string, error) {
 	return result.Value.Str(), nil
 }
 
+// DeepQueryOuterHTML finds an element via deepQuery, creates a deep clone,
+// flattens shadow DOM content into the clone, and returns the clone's outerHTML.
+// Unlike DeepQueryHTML, this does NOT mutate the live DOM — the original element
+// and its shadow roots remain intact, preserving SPA framework state.
+func DeepQueryOuterHTML(page *rod.Page, selector string) (string, error) {
+	js := fmt.Sprintf(`() => {
+		%s
+		const el = deepQuery(document, '%s');
+		if (!el) return '';
+
+		const clone = el.cloneNode(true);
+
+		// Walk original and clone trees in parallel. For each original node
+		// that has a shadowRoot, clone its shadow children into the
+		// corresponding clone node (cloneNode doesn't copy shadow roots).
+		function mirrorShadow(orig, cloned) {
+			if (orig.shadowRoot) {
+				for (const child of Array.from(orig.shadowRoot.childNodes)) {
+					if (child.nodeType === 1 && child.tagName === 'STYLE') continue;
+					cloned.appendChild(child.cloneNode(true));
+				}
+			}
+			const origChildren = Array.from(orig.children || []);
+			const clonedChildren = Array.from(cloned.children || []);
+			for (let i = 0; i < origChildren.length && i < clonedChildren.length; i++) {
+				mirrorShadow(origChildren[i], clonedChildren[i]);
+			}
+		}
+		mirrorShadow(el, clone);
+		return clone.outerHTML;
+	}`, DeepQueryJS, selector)
+
+	result, err := page.Eval(js)
+	if err != nil {
+		return "", fmt.Errorf("deepQueryOuterHTML eval: %w", err)
+	}
+	return result.Value.Str(), nil
+}
+
 // DeepQueryCountAll returns the number of elements matching selector across
 // all shadow boundaries. Returns 0 on any error — non-blocking.
 func DeepQueryCountAll(page *rod.Page, selector string) int {
