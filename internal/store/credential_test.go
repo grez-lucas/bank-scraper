@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -52,7 +53,7 @@ func TestCredentialRepo_GetByID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, c.ID, fetched.ID)
-	assert.Equal(t, "BBVA", fetched.BankCode)
+	assert.Equal(t, c.BankCode, fetched.BankCode)
 	assert.Equal(t, "Test Account", fetched.AccountLabel)
 	assert.Equal(t, c.CredentialsEnc, fetched.CredentialsEnc)
 	assert.Equal(t, 1, fetched.Version)
@@ -195,12 +196,17 @@ func TestCredentialRepo_HardDeleteExpired(t *testing.T) {
 	assert.Equal(t, "deleted", fetched.Status)
 }
 
+var testCredentialCounter int
+
 // createTestCredential inserts a minimal credential for tests.
+// Uses a unique bank code per call to avoid the unique active bank constraint.
 func createTestCredential(t *testing.T, repo *CredentialRepo, userID uuid.UUID) *BankCredential {
 	t.Helper()
+	testCredentialCounter++
+	bankCode := fmt.Sprintf("BANK%d", testCredentialCounter)
 
 	c := &BankCredential{
-		BankCode:       "BBVA",
+		BankCode:       bankCode,
 		AccountLabel:   "Test Account",
 		CredentialsEnc: []byte("test-encrypted-creds"),
 		CredentialsDEK: []byte("test-encrypted-dek"),

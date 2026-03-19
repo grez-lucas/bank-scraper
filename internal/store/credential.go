@@ -37,6 +37,7 @@ type BankCredential struct {
 type CredentialRepository interface {
 	Create(ctx context.Context, c *BankCredential) error
 	GetByID(ctx context.Context, id uuid.UUID) (*BankCredential, error)
+	GetActiveByBankCode(ctx context.Context, bankCode string) (*BankCredential, error)
 	List(ctx context.Context) ([]BankCredential, error)
 	Update(ctx context.Context, c *BankCredential) error
 	SoftDelete(ctx context.Context, id, deletedBy uuid.UUID) error
@@ -89,6 +90,19 @@ func (r *CredentialRepo) GetByID(ctx context.Context, id uuid.UUID) (*BankCreden
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get credential by id: %w", err)
+	}
+	return c, nil
+}
+
+func (r *CredentialRepo) GetActiveByBankCode(ctx context.Context, bankCode string) (*BankCredential, error) {
+	query := `SELECT ` + credentialColumns + ` FROM bank_credentials WHERE bank_code = $1 AND status = $2`
+
+	c, err := scanCredential(r.pool.QueryRow(ctx, query, bankCode, CredentialStatusActive))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("credential for %s: %w", bankCode, ErrNotFound)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get credential by bank code: %w", err)
 	}
 	return c, nil
 }

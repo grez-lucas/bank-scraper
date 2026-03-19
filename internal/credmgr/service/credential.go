@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,6 +11,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/crypto"
 	"github.com/grez-lucas/bank-scraper/internal/store"
+)
+
+// Credential service errors.
+var (
+	ErrDuplicateBank          = errors.New("credential already exists for this bank")
+	ErrCredentialNotConfigured = errors.New("no credential configured for this bank")
 )
 
 // Audit action constants for credential operations.
@@ -70,7 +77,17 @@ func NewCredentialService(
 }
 
 // Create encrypts and stores a new bank credential. Returns the new credential ID.
+// Returns ErrDuplicateBank if an active credential already exists for the same bank.
 func (s *CredentialService) Create(ctx context.Context, cred PlaintextCredential, userID uuid.UUID, ip, ua string) (uuid.UUID, error) {
+	// Enforce one credential per bank
+	_, err := s.creds.GetActiveByBankCode(ctx, cred.BankCode)
+	if err == nil {
+		return uuid.Nil, fmt.Errorf("create credential: %w", ErrDuplicateBank)
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return uuid.Nil, fmt.Errorf("check existing credential: %w", err)
+	}
+
 	encData, encDEK, err := s.encryptFields(cred.Fields)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("encrypt credential: %w", err)
@@ -201,6 +218,25 @@ func (s *CredentialService) TestByID(ctx context.Context, id uuid.UUID, userID u
 		map[string]any{"bank_code": stored.BankCode})
 
 	return testErr
+}
+
+// GetCredentials fetches and decrypts the active credential for a bank.
+// Returns ErrCredentialNotConfigured if no active credential exists for the bank code.
+func (s *CredentialService) GetCredentials(ctx context.Context, bankCode string) (map[string]string, error) {
+	stored, err := s.creds.GetActiveByBankCode(ctx, bankCode)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, fmt.Errorf("get credentials for %s: %w", bankCode, ErrCredentialNotConfigured)
+		}
+		return nil, fmt.Errorf("get credentials for %s: %w", bankCode, err)
+	}
+
+	fields, err := s.decryptFields(stored.CredentialsEnc, stored.CredentialsDEK)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt credentials for %s: %w", bankCode, err)
+	}
+
+	return fields, nil
 }
 
 // encryptFields marshals credential fields to JSON and encrypts with envelope encryption.

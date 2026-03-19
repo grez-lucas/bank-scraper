@@ -92,6 +92,18 @@ func (r *fakeCredentialRepo) SoftDelete(_ context.Context, id, deletedBy uuid.UU
 	return nil
 }
 
+func (r *fakeCredentialRepo) GetActiveByBankCode(_ context.Context, bankCode string) (*store.BankCredential, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, c := range r.creds {
+		if c.BankCode == bankCode && c.Status == store.CredentialStatusActive {
+			clone := *c
+			return &clone, nil
+		}
+	}
+	return nil, store.ErrNotFound
+}
+
 func (r *fakeCredentialRepo) HardDeleteExpired(_ context.Context, _ int) (int64, error) {
 	return 0, nil
 }
@@ -341,4 +353,110 @@ func TestCredentialService_SoftDelete_NotFound(t *testing.T) {
 	ctx := context.Background()
 	err := svc.SoftDelete(ctx, uuid.New(), uuid.New(), "10.0.0.1", "TestAgent")
 	require.Error(t, err)
+}
+
+// --- One credential per bank ---
+
+func TestCredentialService_Create_DuplicateBank(t *testing.T) {
+	credRepo := newFakeCredentialRepo()
+	auditRepo := newFakeAuditRepo()
+	svc := newTestCredentialService(credRepo, auditRepo, &fakeTester{})
+
+	ctx := context.Background()
+	userID := uuid.New()
+
+	// First BBVA credential — should succeed
+	_, err := svc.Create(ctx, PlaintextCredential{BankCode: "BBVA", Label: "First", Fields: map[string]string{"password": "s"}}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+
+	// Second BBVA credential — should fail with ErrDuplicateBank
+	_, err = svc.Create(ctx, PlaintextCredential{BankCode: "BBVA", Label: "Second", Fields: map[string]string{"password": "s"}}, userID, "10.0.0.1", "TestAgent")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDuplicateBank)
+}
+
+func TestCredentialService_Create_DifferentBanks(t *testing.T) {
+	credRepo := newFakeCredentialRepo()
+	auditRepo := newFakeAuditRepo()
+	svc := newTestCredentialService(credRepo, auditRepo, &fakeTester{})
+
+	ctx := context.Background()
+	userID := uuid.New()
+
+	_, err := svc.Create(ctx, PlaintextCredential{BankCode: "BBVA", Label: "BBVA Acc", Fields: map[string]string{"p": "1"}}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+
+	_, err = svc.Create(ctx, PlaintextCredential{BankCode: "BCP", Label: "BCP Acc", Fields: map[string]string{"p": "2"}}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+}
+
+func TestCredentialService_Create_AfterDeleteAllowed(t *testing.T) {
+	credRepo := newFakeCredentialRepo()
+	auditRepo := newFakeAuditRepo()
+	svc := newTestCredentialService(credRepo, auditRepo, &fakeTester{})
+
+	ctx := context.Background()
+	userID := uuid.New()
+
+	// Create and delete
+	id, err := svc.Create(ctx, PlaintextCredential{BankCode: "BBVA", Label: "Old", Fields: map[string]string{"p": "1"}}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+	require.NoError(t, svc.SoftDelete(ctx, id, userID, "10.0.0.1", "TestAgent"))
+
+	// New BBVA credential should succeed (old one is soft-deleted)
+	_, err = svc.Create(ctx, PlaintextCredential{BankCode: "BBVA", Label: "New", Fields: map[string]string{"p": "2"}}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+}
+
+// --- Scraper reads credentials from DB ---
+
+func TestCredentialService_GetCredentials_Found(t *testing.T) {
+	credRepo := newFakeCredentialRepo()
+	auditRepo := newFakeAuditRepo()
+	svc := newTestCredentialService(credRepo, auditRepo, &fakeTester{})
+
+	ctx := context.Background()
+	userID := uuid.New()
+
+	_, err := svc.Create(ctx, PlaintextCredential{
+		BankCode: "BBVA",
+		Label:    "BBVA Main",
+		Fields:   map[string]string{"company_code": "123", "user_code": "admin", "password": "secret"},
+	}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+
+	fields, err := svc.GetCredentials(ctx, "BBVA")
+	require.NoError(t, err)
+	assert.Equal(t, "123", fields["company_code"])
+	assert.Equal(t, "admin", fields["user_code"])
+	assert.Equal(t, "secret", fields["password"])
+}
+
+func TestCredentialService_GetCredentials_NotConfigured(t *testing.T) {
+	credRepo := newFakeCredentialRepo()
+	auditRepo := newFakeAuditRepo()
+	svc := newTestCredentialService(credRepo, auditRepo, &fakeTester{})
+
+	ctx := context.Background()
+	_, err := svc.GetCredentials(ctx, "BBVA")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrCredentialNotConfigured)
+}
+
+func TestCredentialService_GetCredentials_WrongBank(t *testing.T) {
+	credRepo := newFakeCredentialRepo()
+	auditRepo := newFakeAuditRepo()
+	svc := newTestCredentialService(credRepo, auditRepo, &fakeTester{})
+
+	ctx := context.Background()
+	userID := uuid.New()
+
+	// Only BBVA is configured
+	_, err := svc.Create(ctx, PlaintextCredential{BankCode: "BBVA", Label: "BBVA", Fields: map[string]string{"p": "1"}}, userID, "10.0.0.1", "TestAgent")
+	require.NoError(t, err)
+
+	// BCP is not configured
+	_, err = svc.GetCredentials(ctx, "BCP")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrCredentialNotConfigured)
 }
