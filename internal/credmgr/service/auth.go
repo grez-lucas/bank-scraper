@@ -28,6 +28,13 @@ const (
 	tokenBytes        = 32 // 32 bytes → 64 hex chars
 )
 
+// Audit action constants for auth operations.
+const (
+	AuditLoginSuccess = "login_success"
+	AuditLoginFailed  = "login_failed"
+	AuditLogout       = "logout"
+)
+
 // Sentinel errors for the auth service.
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
@@ -40,6 +47,7 @@ var (
 type AuthService struct {
 	users    store.UserRepository
 	sessions store.SessionRepository
+	aw       *AuditWriter
 	mk       crypto.MasterKey
 	ttl      time.Duration
 	logger   *slog.Logger
@@ -59,6 +67,7 @@ type pendingLogin struct {
 func NewAuthService(
 	users store.UserRepository,
 	sessions store.SessionRepository,
+	aw *AuditWriter,
 	mk crypto.MasterKey,
 	sessionTTL time.Duration,
 	logger *slog.Logger,
@@ -66,6 +75,7 @@ func NewAuthService(
 	return &AuthService{
 		users:    users,
 		sessions: sessions,
+		aw:       aw,
 		mk:       mk,
 		ttl:      sessionTTL,
 		logger:   logger,
@@ -117,6 +127,8 @@ func (s *AuthService) Login(ctx context.Context, username, password, ip, ua stri
 				slog.Time("locked_until", lockUntil))
 		}
 
+		s.aw.Log(ctx, &user.ID, AuditLoginFailed, "user", user.ID.String(), ip, ua, false,
+			map[string]any{"reason": "wrong_password", "failed_attempts": count})
 		return false, "", fmt.Errorf("login: %w", ErrInvalidCredentials)
 	}
 
@@ -199,6 +211,8 @@ func (s *AuthService) VerifyTOTP(ctx context.Context, pendingToken, code, ip, ua
 		s.logger.Warn("failed to reset failed attempts", slog.Any("error", err))
 	}
 
+	s.aw.Log(ctx, &pl.userID, AuditLoginSuccess, "user", pl.userID.String(), ip, ua, true, nil)
+
 	s.logger.Info("login complete",
 		slog.String("user_id", pl.userID.String()),
 		slog.String("session_id", session.ID.String()))
@@ -258,6 +272,8 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	if err := s.sessions.Delete(ctx, session.ID); err != nil {
 		return fmt.Errorf("logout: %w", err)
 	}
+
+	s.aw.Log(ctx, &session.UserID, AuditLogout, "session", session.ID.String(), "", "", true, nil)
 
 	s.logger.Info("session destroyed",
 		slog.String("session_id", session.ID.String()),

@@ -146,11 +146,12 @@ func (t *fakeTester) TestCredentials(_ context.Context, _ string, _ map[string]s
 
 func newTestCredentialService(
 	credRepo store.CredentialRepository,
-	auditRepo store.AuditLogRepository,
+	auditRepo *fakeAuditRepo,
 	tester CredentialTester,
 ) *CredentialService {
 	mk, _ := crypto.ParseMasterKey("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-	return NewCredentialService(credRepo, auditRepo, mk, tester, slog.Default())
+	aw := NewAuditWriter(auditRepo, slog.Default())
+	return NewCredentialService(credRepo, aw, mk, tester, slog.Default())
 }
 
 // --- tests ---
@@ -195,7 +196,8 @@ func TestCredentialService_Create_CanDecrypt(t *testing.T) {
 	credRepo := newFakeCredentialRepo()
 	auditRepo := newFakeAuditRepo()
 	mk, _ := crypto.ParseMasterKey("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-	svc := NewCredentialService(credRepo, auditRepo, mk, &fakeTester{}, slog.Default())
+	aw := NewAuditWriter(auditRepo, slog.Default())
+	svc := NewCredentialService(credRepo, aw, mk, &fakeTester{}, slog.Default())
 
 	ctx := context.Background()
 	cred := PlaintextCredential{

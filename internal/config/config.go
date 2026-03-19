@@ -24,6 +24,9 @@ type Config struct {
 	// API Gateway
 	APIPort int `envconfig:"API_PORT" default:"8080"`
 
+	// Cookie security (set to false for local dev without HTTPS)
+	SecureCookies bool `envconfig:"CREDMGR_SECURE_COOKIES" default:"false"`
+
 	// Scraper settings
 	ScraperTimeout  time.Duration `envconfig:"SCRAPER_TIMEOUT" default:"30s"`
 	ScraperHeadless bool          `envconfig:"SCRAPER_HEADLESS" default:"true"`

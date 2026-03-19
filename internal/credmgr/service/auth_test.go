@@ -212,7 +212,8 @@ func createTestUserWithTOTP(t *testing.T, userRepo *fakeUserRepo, mk crypto.Mast
 }
 
 func newTestAuthService(userRepo store.UserRepository, sessionRepo store.SessionRepository, mk crypto.MasterKey) *AuthService {
-	return NewAuthService(userRepo, sessionRepo, mk, 15*time.Minute, slog.Default())
+	aw := NewAuditWriter(newFakeAuditRepo(), slog.Default())
+	return NewAuthService(userRepo, sessionRepo, aw, mk, 15*time.Minute, slog.Default())
 }
 
 // --- tests ---
@@ -357,7 +358,8 @@ func TestValidateSession_Expired(t *testing.T) {
 	sessionRepo := newFakeSessionRepo()
 	mk := testMasterKey(t)
 	// Use a very short TTL so the session expires immediately
-	svc := NewAuthService(userRepo, sessionRepo, mk, 1*time.Millisecond, slog.Default())
+	aw := NewAuditWriter(newFakeAuditRepo(), slog.Default())
+	svc := NewAuthService(userRepo, sessionRepo, aw, mk, 1*time.Millisecond, slog.Default())
 
 	_, totpSecret := createTestUserWithTOTP(t, userRepo, mk)
 

@@ -46,7 +46,7 @@ type CredentialTester interface {
 // CredentialService manages the bank credential lifecycle.
 type CredentialService struct {
 	creds  store.CredentialRepository
-	audit  store.AuditLogRepository
+	aw     *AuditWriter
 	mk     crypto.MasterKey
 	tester CredentialTester
 	logger *slog.Logger
@@ -55,14 +55,14 @@ type CredentialService struct {
 // NewCredentialService creates a new CredentialService.
 func NewCredentialService(
 	creds store.CredentialRepository,
-	audit store.AuditLogRepository,
+	aw *AuditWriter,
 	mk crypto.MasterKey,
 	tester CredentialTester,
 	logger *slog.Logger,
 ) *CredentialService {
 	return &CredentialService{
 		creds:  creds,
-		audit:  audit,
+		aw:     aw,
 		mk:     mk,
 		tester: tester,
 		logger: logger,
@@ -89,7 +89,7 @@ func (s *CredentialService) Create(ctx context.Context, cred PlaintextCredential
 		return uuid.Nil, fmt.Errorf("create credential: %w", err)
 	}
 
-	s.auditLog(ctx, &userID, AuditCredentialCreated, "credential", c.ID.String(), ip, ua, true, nil)
+	s.aw.Log(ctx, &userID, AuditCredentialCreated, "credential", c.ID.String(), ip, ua, true, nil)
 
 	s.logger.Info("credential created",
 		slog.String("credential_id", c.ID.String()),
@@ -118,7 +118,7 @@ func (s *CredentialService) List(ctx context.Context, userID uuid.UUID, ip, ua s
 		}
 	}
 
-	s.auditLog(ctx, &userID, AuditCredentialsListed, "credential", "", ip, ua, true, nil)
+	s.aw.Log(ctx, &userID, AuditCredentialsListed, "credential", "", ip, ua, true, nil)
 
 	return summaries, nil
 }
@@ -140,12 +140,12 @@ func (s *CredentialService) Update(ctx context.Context, id uuid.UUID, cred Plain
 	}
 
 	if err := s.creds.Update(ctx, c); err != nil {
-		s.auditLog(ctx, &userID, AuditCredentialUpdated, "credential", id.String(), ip, ua, false,
+		s.aw.Log(ctx, &userID, AuditCredentialUpdated, "credential", id.String(), ip, ua, false,
 			map[string]any{"error": err.Error()})
 		return fmt.Errorf("update credential: %w", err)
 	}
 
-	s.auditLog(ctx, &userID, AuditCredentialUpdated, "credential", id.String(), ip, ua, true,
+	s.aw.Log(ctx, &userID, AuditCredentialUpdated, "credential", id.String(), ip, ua, true,
 		map[string]any{"new_version": c.Version})
 
 	s.logger.Info("credential updated",
@@ -158,12 +158,12 @@ func (s *CredentialService) Update(ctx context.Context, id uuid.UUID, cred Plain
 // SoftDelete marks a credential as deleted.
 func (s *CredentialService) SoftDelete(ctx context.Context, id uuid.UUID, userID uuid.UUID, ip, ua string) error {
 	if err := s.creds.SoftDelete(ctx, id, userID); err != nil {
-		s.auditLog(ctx, &userID, AuditCredentialDeleted, "credential", id.String(), ip, ua, false,
+		s.aw.Log(ctx, &userID, AuditCredentialDeleted, "credential", id.String(), ip, ua, false,
 			map[string]any{"error": err.Error()})
 		return fmt.Errorf("soft delete credential: %w", err)
 	}
 
-	s.auditLog(ctx, &userID, AuditCredentialDeleted, "credential", id.String(), ip, ua, true, nil)
+	s.aw.Log(ctx, &userID, AuditCredentialDeleted, "credential", id.String(), ip, ua, true, nil)
 
 	s.logger.Info("credential soft-deleted",
 		slog.String("credential_id", id.String()))
@@ -192,21 +192,3 @@ func (s *CredentialService) encryptFields(fields map[string]string) (encData, en
 	return encData, encDEK, nil
 }
 
-// auditLog writes an audit log entry. Failures are logged but don't block the caller.
-func (s *CredentialService) auditLog(ctx context.Context, userID *uuid.UUID, action, targetType, targetID, ip, ua string, success bool, details map[string]any) {
-	l := &store.AuditLog{
-		UserID:     userID,
-		Action:     action,
-		TargetType: targetType,
-		TargetID:   targetID,
-		IPAddress:  ip,
-		UserAgent:  ua,
-		Details:    details,
-		Success:    success,
-	}
-	if err := s.audit.Create(ctx, l); err != nil {
-		s.logger.Warn("failed to write audit log",
-			slog.String("action", action),
-			slog.Any("error", err))
-	}
-}

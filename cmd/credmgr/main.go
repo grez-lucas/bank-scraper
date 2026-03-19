@@ -13,12 +13,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/grez-lucas/bank-scraper/internal/config"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/crypto"
+	"github.com/grez-lucas/bank-scraper/internal/credmgr/handler"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
 	"github.com/grez-lucas/bank-scraper/internal/store"
 	"github.com/joho/godotenv"
@@ -68,14 +70,54 @@ func main() {
 		}
 
 	case "serve":
-		fmt.Printf("credential manager server would start on port %d\n", cfg.CredMgrPort)
-		fmt.Println("(not yet implemented — see M6)")
+		if err := serve(cfg); err != nil {
+			log.Fatalf("serve failed: %v", err)
+		}
 
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+func serve(cfg *config.Config) error {
+	if cfg.EncryptionKey == "" {
+		return fmt.Errorf("ENCRYPTION_KEY env var is required")
+	}
+	mk, err := crypto.ParseMasterKey(cfg.EncryptionKey)
+	if err != nil {
+		return fmt.Errorf("parse encryption key: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db, err := store.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("connect to database: %w", err)
+	}
+	defer db.Close()
+
+	logger := slog.Default()
+
+	// Create repositories
+	userRepo := store.NewUserRepo(db.Pool())
+	sessionRepo := store.NewSessionRepo(db.Pool())
+	auditRepo := store.NewAuditLogRepo(db.Pool())
+	credRepo := store.NewCredentialRepo(db.Pool())
+
+	// Create services
+	aw := service.NewAuditWriter(auditRepo, logger)
+	authSvc := service.NewAuthService(userRepo, sessionRepo, aw, mk, cfg.SessionTTL, logger)
+	credSvc := service.NewCredentialService(credRepo, aw, mk, nil, logger) // tester=nil for now
+
+	// Setup and start router
+	router := handler.SetupRouter(authSvc, credSvc, auditRepo, aw, logger)
+
+	addr := fmt.Sprintf(":%d", cfg.CredMgrPort)
+	fmt.Printf("Credential Manager starting on http://localhost%s\n", addr)
+	return router.Run(addr)
 }
 
 func seedAdmin(cfg *config.Config) error {

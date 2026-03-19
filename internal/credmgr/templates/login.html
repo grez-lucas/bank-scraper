@@ -1,0 +1,43 @@
+{{define "login.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Sign In - Aynitech Bank Scraper</title>{{template "head" .}}</head>
+<body class="min-h-screen flex items-center justify-center relative overflow-hidden">
+<!-- Blurred background logo -->
+<div class="absolute inset-0 z-0">
+    <div class="absolute inset-0 bg-gradient-to-br from-slate-100 to-blue-50"></div>
+    <img src="/static/logo_bg.png" alt=""
+         class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] max-w-none opacity-15 blur-sm select-none pointer-events-none"
+         aria-hidden="true">
+</div>
+
+<main class="w-full max-w-sm px-4 relative z-10">
+    <div class="text-center mb-8">
+        <img src="/static/logo.png" alt="Aynitech Group" class="h-14 mx-auto mb-4 drop-shadow-sm">
+        <h1 class="text-xl font-bold text-gray-800">Bank Scraper</h1>
+        <p class="text-xs text-gray-400 tracking-wide uppercase">Credential Manager</p>
+    </div>
+    {{template "flash" .}}
+    {{if .Error}}
+    <div class="mb-4 p-3 rounded bg-red-50 text-red-700 border border-red-200 text-sm">{{.Error}}</div>
+    {{end}}
+    <form method="POST" action="/login" class="space-y-4 bg-white/90 backdrop-blur-sm shadow-lg rounded-xl p-6 border border-gray-100">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <div>
+            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input type="text" id="username" name="username" required autofocus
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                   value="{{.Username}}">
+        </div>
+        <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input type="password" id="password" name="password" required
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <button type="submit" class="w-full py-2.5 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors">Sign In</button>
+    </form>
+    <p class="mt-6 text-center text-xs text-gray-400">Aynitech Group &middot; Internal Use Only</p>
+</main>
+</body>
+</html>
+{{end}}

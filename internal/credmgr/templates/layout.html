@@ -1,0 +1,38 @@
+{{define "head"}}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" href="/static/logo.png" type="image/png">
+{{end}}
+
+{{define "nav"}}
+{{if .User}}
+<nav class="bg-white shadow-sm border-b">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+        <a href="/credentials" class="flex items-center gap-3">
+            <img src="/static/logo.png" alt="Aynitech" class="h-8">
+            <div class="leading-tight">
+                <span class="font-semibold text-gray-800 text-sm">Bank Scraper</span>
+                <span class="block text-xs text-gray-400">Credential Manager</span>
+            </div>
+        </a>
+        <div class="flex items-center gap-6">
+            <a href="/credentials" class="text-sm text-gray-600 hover:text-blue-600">Credentials</a>
+            <a href="/audit" class="text-sm text-gray-600 hover:text-blue-600">Audit Log</a>
+            <form method="POST" action="/logout" class="inline">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <button type="submit" class="text-sm text-red-600 hover:text-red-800">Logout</button>
+            </form>
+        </div>
+    </div>
+</nav>
+{{end}}
+{{end}}
+
+{{define "flash"}}
+{{if .Flash}}
+<div class="mb-4 p-3 rounded {{if eq .FlashType "error"}}bg-red-50 text-red-700 border border-red-200{{else}}bg-green-50 text-green-700 border border-green-200{{end}}">
+    {{.Flash}}
+</div>
+{{end}}
+{{end}}

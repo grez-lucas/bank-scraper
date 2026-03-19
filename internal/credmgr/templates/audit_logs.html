@@ -1,0 +1,78 @@
+{{define "audit_logs.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Audit Log - Aynitech Bank Scraper</title>{{template "head" .}}</head>
+<body class="bg-gray-50 min-h-screen">
+{{template "nav" .}}
+<main class="max-w-5xl mx-auto px-4 py-8">
+{{template "flash" .}}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">Audit Log</h1>
+    <div class="flex gap-2">
+        <a href="/audit/export?format=csv{{.FilterQuery}}" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200">Export CSV</a>
+        <a href="/audit/export?format=json{{.FilterQuery}}" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200">Export JSON</a>
+    </div>
+</div>
+<form method="GET" action="/audit" class="mb-6 flex gap-3 items-end">
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Action</label>
+        <select name="action" class="px-3 py-1.5 border border-gray-300 rounded-md text-sm">
+            <option value="">All actions</option>
+            {{range .Actions}}
+            <option value="{{.}}" {{if eq . $.FilterAction}}selected{{end}}>{{.}}</option>
+            {{end}}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">From</label>
+        <input type="date" name="from" value="{{.FilterFrom}}" class="px-3 py-1.5 border border-gray-300 rounded-md text-sm">
+    </div>
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">To</label>
+        <input type="date" name="to" value="{{.FilterTo}}" class="px-3 py-1.5 border border-gray-300 rounded-md text-sm">
+    </div>
+    <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">Filter</button>
+</form>
+<div class="bg-white shadow rounded-lg overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+            {{range .Logs}}
+            <tr>
+                <td class="px-4 py-3 text-sm text-gray-500">{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{.Action}}</td>
+                <td class="px-4 py-3 text-sm text-gray-600">{{.TargetType}} {{.TargetID}}</td>
+                <td class="px-4 py-3 text-sm text-gray-500">{{.IPAddress}}</td>
+                <td class="px-4 py-3 text-sm">
+                    {{if .Success}}<span class="text-green-600">OK</span>{{else}}<span class="text-red-600">FAIL</span>{{end}}
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500 text-sm">No audit logs found.</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{if gt .TotalPages 1}}
+<div class="mt-4 flex justify-center gap-2">
+    {{if gt .Page 1}}
+    <a href="/audit?page={{sub .Page 1}}{{.FilterQuery}}" class="px-3 py-1 border rounded text-sm hover:bg-gray-50">Previous</a>
+    {{end}}
+    <span class="px-3 py-1 text-sm text-gray-500">Page {{.Page}} of {{.TotalPages}}</span>
+    {{if lt .Page .TotalPages}}
+    <a href="/audit?page={{add .Page 1}}{{.FilterQuery}}" class="px-3 py-1 border rounded text-sm hover:bg-gray-50">Next</a>
+    {{end}}
+</div>
+{{end}}
+</main>
+</body>
+</html>
+{{end}}
