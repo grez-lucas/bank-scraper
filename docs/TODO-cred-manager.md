@@ -52,7 +52,7 @@ Critical path: M0 → M2 → M3 → M6 → M7
 
 ## M0: Foundation — Config + Docker + DB + Migrations
 
-**Status:** TODO
+**Status:** DONE
 
 ### Deliverables
 
@@ -164,11 +164,13 @@ golang.org/x/crypto
 
 ### Acceptance Criteria
 
-- [ ] `docker compose up -d` starts PostgreSQL
-- [ ] Config loads from env vars with defaults
-- [ ] `go run ./cmd/credmgr migrate` creates all 4 tables
-- [ ] `go run ./cmd/credmgr migrate-down` rolls back cleanly
-- [ ] `go build ./...` compiles
+- [x] `docker compose up -d` starts PostgreSQL
+- [x] Config loads from env vars with defaults
+- [x] `go run ./cmd/credmgr migrate` creates all 4 tables (users, sessions, bank_credentials, audit_logs)
+- [x] `go run ./cmd/credmgr migrate-down` rolls back cleanly
+- [x] `go build ./...` compiles
+- [x] `go vet ./...` passes
+- [x] Existing scraper tests still pass
 
 ---
 

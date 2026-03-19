@@ -10,13 +10,14 @@ BIN_DIR := bin
 # BUILD
 # ============================== #
 
-## build: build main binary
+## build: build all binaries
 .PHONY: build
 build:
 	@mkdir -p $(BIN_DIR)
 	@printf "$(ccyellow)Building... $(ccend)\n"
-	go build -o $(BIN_DIR)/bank-scraper ./cmd/...
-	@printf "$(ccgreen)Build done! Binary at $(BIN_DIR)/bank-scraper$(ccend)\n"
+	go build -o $(BIN_DIR)/bank-scraper ./cmd/main.go
+	go build -o $(BIN_DIR)/credmgr ./cmd/credmgr
+	@printf "$(ccgreen)Build done! Binaries at $(BIN_DIR)/$(ccend)\n"
 
 ## clean: remove build artifacts
 .PHONY: clean
@@ -79,6 +80,61 @@ lint:
 	else \
 		printf "$(ccred)golangci-lint is not installed. Please install it from https://github.com/golangci-lint$(ccend)\n"; \
 	fi
+
+# ============================== #
+# SETUP
+# ============================== #
+
+## setup: bootstrap dev environment (copy .env, start DB, run migrations)
+.PHONY: setup
+setup:
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		printf "$(ccgreen)Created .env from .env.example — fill in your secrets$(ccend)\n"; \
+	else \
+		printf "$(ccyellow).env already exists, skipping copy$(ccend)\n"; \
+	fi
+	@printf "$(ccyellow)Starting PostgreSQL...$(ccend)\n"
+	docker compose up -d postgres
+	@printf "$(ccyellow)Waiting for PostgreSQL to be ready...$(ccend)\n"
+	@until docker compose exec postgres pg_isready -U scraper -d bank_scraper -q 2>/dev/null; do sleep 1; done
+	@printf "$(ccyellow)Running migrations...$(ccend)\n"
+	go run ./cmd/credmgr migrate
+	@printf "$(ccgreen)Setup complete!$(ccend)\n"
+
+## gen-encryption-key: generate a random 32-byte encryption key
+.PHONY: gen-encryption-key
+gen-encryption-key:
+	@printf "ENCRYPTION_KEY=%s\n" "$$(openssl rand -hex 32)"
+
+# ============================== #
+# DATABASE
+# ============================== #
+
+## db-up: start PostgreSQL via Docker Compose
+.PHONY: db-up
+db-up:
+	docker compose up -d postgres
+
+## db-down: stop Docker Compose services
+.PHONY: db-down
+db-down:
+	docker compose down
+
+## migrate: run all pending database migrations
+.PHONY: migrate
+migrate:
+	go run ./cmd/credmgr migrate
+
+## migrate-down: rollback the last database migration
+.PHONY: migrate-down
+migrate-down:
+	go run ./cmd/credmgr migrate-down
+
+## db-version: show current migration version
+.PHONY: db-version
+db-version:
+	go run ./cmd/credmgr version
 
 # ============================== #
 # FIXTURES
