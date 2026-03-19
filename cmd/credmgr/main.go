@@ -2,30 +2,34 @@
 //
 // Usage:
 //
-//	credmgr serve         Start the HTTP server
-//	credmgr migrate       Run all pending database migrations
-//	credmgr migrate-down  Rollback the last migration
-//	credmgr version       Show the current migration version
+//	credmgr serve           Start the HTTP server
+//	credmgr seed-admin      Create an admin user (interactive)
+//	credmgr migrate         Run all pending database migrations
+//	credmgr migrate-down    Rollback the last migration
+//	credmgr version         Show the current migration version
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/grez-lucas/bank-scraper/internal/config"
+	"github.com/grez-lucas/bank-scraper/internal/credmgr/crypto"
+	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
 	"github.com/grez-lucas/bank-scraper/internal/store"
 	"github.com/joho/godotenv"
+	"github.com/pquerna/otp/totp"
+	"golang.org/x/term"
 )
 
 func main() {
 	// Load .env if present (ignored if file doesn't exist)
-	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
-		// godotenv returns a *PathError when the file doesn't exist
-		if !os.IsNotExist(err) {
-			log.Fatalf("failed to load .env: %v", err)
-		}
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Fatalf("failed to load .env: %v", err)
 	}
 
 	if len(os.Args) < 2 {
@@ -58,6 +62,11 @@ func main() {
 		}
 		fmt.Printf("version: %d, dirty: %v\n", v, dirty)
 
+	case "seed-admin":
+		if err := seedAdmin(cfg); err != nil {
+			log.Fatalf("seed-admin failed: %v", err)
+		}
+
 	case "serve":
 		fmt.Printf("credential manager server would start on port %d\n", cfg.CredMgrPort)
 		fmt.Println("(not yet implemented — see M6)")
@@ -69,9 +78,106 @@ func main() {
 	}
 }
 
+func seedAdmin(cfg *config.Config) error {
+	// Parse username from args
+	username := ""
+	for i, arg := range os.Args {
+		if arg == "--username" && i+1 < len(os.Args) {
+			username = os.Args[i+1]
+		} else if v, ok := strings.CutPrefix(arg, "--username="); ok {
+			username = v
+		}
+	}
+	if username == "" {
+		return fmt.Errorf("--username is required\nUsage: credmgr seed-admin --username=<name>")
+	}
+
+	// Require encryption key
+	if cfg.EncryptionKey == "" {
+		return fmt.Errorf("ENCRYPTION_KEY env var is required for seed-admin")
+	}
+	mk, err := crypto.ParseMasterKey(cfg.EncryptionKey)
+	if err != nil {
+		return fmt.Errorf("parse encryption key: %w", err)
+	}
+
+	// Prompt for password
+	fmt.Print("Enter password: ")
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println() // newline after password input
+	if err != nil {
+		return fmt.Errorf("read password: %w", err)
+	}
+	password := string(passwordBytes)
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+
+	// Confirm password
+	fmt.Print("Confirm password: ")
+	confirmBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return fmt.Errorf("read password confirmation: %w", err)
+	}
+	if string(confirmBytes) != password {
+		return fmt.Errorf("passwords do not match")
+	}
+
+	// Hash password
+	passwordHash, err := service.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	// Generate TOTP key
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "BankScraper",
+		AccountName: username,
+	})
+	if err != nil {
+		return fmt.Errorf("generate TOTP key: %w", err)
+	}
+
+	// Encrypt TOTP secret
+	encSecret, encDEK, err := crypto.Seal(mk, []byte(key.Secret()))
+	if err != nil {
+		return fmt.Errorf("encrypt TOTP secret: %w", err)
+	}
+
+	// Connect to DB and create user
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db, err := store.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("connect to database: %w", err)
+	}
+	defer db.Close()
+
+	userRepo := store.NewUserRepo(db.Pool())
+	u := &store.User{
+		Username:      username,
+		PasswordHash:  passwordHash,
+		TOTPSecretEnc: encSecret,
+		TOTPSecretDEK: encDEK,
+	}
+	if err := userRepo.Create(ctx, u); err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+
+	fmt.Printf("\nAdmin user created: %s (ID: %s)\n\n", username, u.ID)
+	fmt.Println("Scan this URI with your authenticator app (Google Authenticator, Authy, etc.):")
+	fmt.Printf("\n  %s\n\n", key.URL())
+	fmt.Printf("Or enter this secret manually: %s\n", key.Secret())
+
+	return nil
+}
+
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage: credmgr <command>\n\nCommands:\n")
 	fmt.Fprintf(os.Stderr, "  serve         Start the HTTP server\n")
+	fmt.Fprintf(os.Stderr, "  seed-admin    Create an admin user (interactive)\n")
 	fmt.Fprintf(os.Stderr, "  migrate       Run all pending database migrations\n")
 	fmt.Fprintf(os.Stderr, "  migrate-down  Rollback the last migration\n")
 	fmt.Fprintf(os.Stderr, "  version       Show the current migration version\n")

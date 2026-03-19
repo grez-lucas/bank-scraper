@@ -51,24 +51,33 @@ func (r *UserRepo) Create(ctx context.Context, u *User) error {
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, is_active, failed_attempts, locked_until, created_at, updated_at`
 
-	return r.pool.QueryRow(ctx, query,
+	err := r.pool.QueryRow(ctx, query,
 		u.Username, u.PasswordHash, u.TOTPSecretEnc, u.TOTPSecretDEK,
 	).Scan(
 		&u.ID, &u.IsActive, &u.FailedAttempts, &u.LockedUntil, &u.CreatedAt, &u.UpdatedAt,
 	)
+	if err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+	return nil
 }
 
-func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
-	query := `
-		SELECT id, username, password_hash, totp_secret_enc, totp_secret_dek,
-		       is_active, failed_attempts, locked_until, created_at, updated_at
-		FROM users WHERE id = $1`
+const userColumns = `id, username, password_hash, totp_secret_enc, totp_secret_dek,
+	       is_active, failed_attempts, locked_until, created_at, updated_at`
 
+func scanUser(row pgx.Row) (*User, error) {
 	u := &User{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := row.Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.TOTPSecretEnc, &u.TOTPSecretDEK,
 		&u.IsActive, &u.FailedAttempts, &u.LockedUntil, &u.CreatedAt, &u.UpdatedAt,
 	)
+	return u, err
+}
+
+func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
+	query := `SELECT ` + userColumns + ` FROM users WHERE id = $1`
+
+	u, err := scanUser(r.pool.QueryRow(ctx, query, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("user %s: %w", id, ErrNotFound)
 	}
@@ -79,16 +88,9 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 }
 
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*User, error) {
-	query := `
-		SELECT id, username, password_hash, totp_secret_enc, totp_secret_dek,
-		       is_active, failed_attempts, locked_until, created_at, updated_at
-		FROM users WHERE username = $1`
+	query := `SELECT ` + userColumns + ` FROM users WHERE username = $1`
 
-	u := &User{}
-	err := r.pool.QueryRow(ctx, query, username).Scan(
-		&u.ID, &u.Username, &u.PasswordHash, &u.TOTPSecretEnc, &u.TOTPSecretDEK,
-		&u.IsActive, &u.FailedAttempts, &u.LockedUntil, &u.CreatedAt, &u.UpdatedAt,
-	)
+	u, err := scanUser(r.pool.QueryRow(ctx, query, username))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("user %q: %w", username, ErrNotFound)
 	}

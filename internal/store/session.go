@@ -48,9 +48,13 @@ func (r *SessionRepo) Create(ctx context.Context, s *Session) error {
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, last_active, created_at`
 
-	return r.pool.QueryRow(ctx, query,
+	err := r.pool.QueryRow(ctx, query,
 		s.UserID, s.TokenHash, s.IPAddress, s.UserAgent, s.ExpiresAt,
 	).Scan(&s.ID, &s.LastActive, &s.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("create session: %w", err)
+	}
+	return nil
 }
 
 func (r *SessionRepo) GetByTokenHash(ctx context.Context, hash string) (*Session, error) {
@@ -64,7 +68,7 @@ func (r *SessionRepo) GetByTokenHash(ctx context.Context, hash string) (*Session
 		&s.ExpiresAt, &s.LastActive, &s.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("session: %w", ErrNotFound)
+		return nil, fmt.Errorf("session token %s...: %w", hash[:8], ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get session by token hash: %w", err)

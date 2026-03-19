@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"testing"
 	"time"
 
@@ -186,7 +185,3 @@ func hashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// ipForTest generates unique IP addresses for parallel test isolation.
-func ipForTest(n int) string {
-	return fmt.Sprintf("10.0.0.%d", n)
-}

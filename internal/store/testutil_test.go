@@ -3,14 +3,17 @@ package store
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var migrateOnce sync.Once
+
 // testPool returns a connection pool to the test database.
-// Skips the test if DATABASE_URL is not set.
+// Skips the test if DATABASE_URL is not set. Runs migrations once per test binary.
 func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
@@ -18,6 +21,15 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	if dbURL == "" {
 		t.Skip("Skipping: requires DATABASE_URL env var (run `make db-up` first)")
 	}
+
+	// Run migrations once per test binary invocation
+	migrateOnce.Do(func() {
+		if err := RunMigrations(dbURL); err != nil {
+			// Can't t.Fatalf inside sync.Once (different goroutine concern),
+			// but since this is test setup, panic is acceptable.
+			panic("run migrations: " + err.Error())
+		}
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -27,11 +39,6 @@ func testPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("connect to test DB: %v", err)
 	}
 	t.Cleanup(pool.Close)
-
-	// Run migrations to ensure schema is up to date
-	if err := RunMigrations(dbURL); err != nil {
-		t.Fatalf("run migrations: %v", err)
-	}
 
 	return pool
 }
