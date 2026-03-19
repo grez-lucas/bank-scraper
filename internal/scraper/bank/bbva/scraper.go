@@ -29,9 +29,11 @@ const (
 	portalURL   = baseURL + "/nextgenempresas/portal/index.html"
 	accountsURL = baseURL + "/nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution"
 
-	maxPaginationClicks = 10 // Safety limit for "Ver más" pagination loop
+	maxPaginationClicks    = 10 // Safety limit for "Ver más" pagination loop
+	maxAccountsNavAttempts = 3  // Total attempts for navigate+wait on accounts page
 
-	defaultTimeout = 30 * time.Second
+	defaultTimeout         = 30 * time.Second
+	accountsNavStepTimeout = 15 * time.Second // Timeout per step (navigate or wait) when retrying
 
 	bbvaSessionTimeout = 10 * time.Minute
 
@@ -484,23 +486,8 @@ func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 		}
 	}
 
-	// Navigation phase
-	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
-	defer navCancel()
-	if err := navigateTo(navCtx, s.page, accountsURL); err != nil {
-		op.Error("navigate to accounts failed", err)
-		s.debug.Screenshot(s.page, "GetBalance", "navigate-error")
-		return nil, &bank.ScraperError{
-			Code:      bank.BankBBVA,
-			Operation: "GetBalance",
-			Cause:     bank.ErrBankUnavailable,
-			Details:   fmt.Sprintf("navigate to accounts: %v", err),
-		}
-	}
-
-	// Wait for Web Components to finish rendering account data.
-	// Uses its own derived context — independent of the navigation deadline.
-	if !waitForAccountsReady(ctx, s.page, s.timeout) {
+	// Navigate to accounts page with retry (SPA intermittently fails to render).
+	if err := navigateToAccountsPage(ctx, s.page, accountsNavStepTimeout, s.logger); err != nil {
 		debugCtx, debugCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer debugCancel()
 		dp := s.page.Context(debugCtx)
@@ -511,13 +498,13 @@ func (s *Scraper) GetBalance(ctx context.Context) ([]bank.Balance, error) {
 			AccountCard:       SelectorAccountCard,
 			AnnouncementModal: SelectorAnnouncementModal,
 		})
-		op.Error("timed out waiting for accounts to render", bank.ErrUnknown,
+		op.Error("accounts page not reachable after retries", bank.ErrUnknown,
 			slog.String("url", pageURL), slog.String("debug_dir", dir))
 		return nil, &bank.ScraperError{
 			Code:      bank.BankBBVA,
 			Operation: "GetBalance",
 			Cause:     bank.ErrUnknown,
-			Details:   fmt.Sprintf("timed out waiting for accounts to render (url=%s, debug=%s, diag=%s)", pageURL, dir, diagJSON),
+			Details:   fmt.Sprintf("accounts page not reachable after %d attempts: %v (url=%s, debug=%s, diag=%s)", maxAccountsNavAttempts, err, pageURL, dir, diagJSON),
 		}
 	}
 
@@ -577,30 +564,16 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 	// Instead: accounts page → click "Ir al detalle de cuenta" on the target card.
 	// Each step gets its own context to avoid deadline exhaustion across steps.
 
-	// Step 1: Navigate to accounts page (reload clears prior FlattenShadowDOM mutations)
-	navCtx, navCancel := context.WithTimeout(ctx, s.timeout)
-	err := navigateTo(navCtx, s.page, accountsURL)
-	navCancel()
-	if err != nil {
-		op.Error("navigate to accounts failed", err)
-		return nil, &bank.ScraperError{
-			Code:      bank.BankBBVA,
-			Operation: "GetTransactions",
-			Cause:     bank.ErrBankUnavailable,
-			Details:   fmt.Sprintf("navigate to accounts: %v", err),
-		}
-	}
-
-	// Step 2: Wait for accounts to render (creates own internal context)
-	if !waitForAccountsReady(ctx, s.page, s.timeout) {
+	// Step 1: Navigate to accounts page with retry (SPA intermittently fails to render)
+	if err := navigateToAccountsPage(ctx, s.page, accountsNavStepTimeout, s.logger); err != nil {
 		pageURL, dir := s.debug.Snapshot(s.page, "GetTransactions", "accounts-timeout")
-		op.Error("timed out waiting for accounts page to render", bank.ErrUnknown,
+		op.Error("accounts page not reachable after retries", bank.ErrUnknown,
 			slog.String("url", pageURL), slog.String("debug_dir", dir))
 		return nil, &bank.ScraperError{
 			Code:      bank.BankBBVA,
 			Operation: "GetTransactions",
 			Cause:     bank.ErrUnknown,
-			Details:   fmt.Sprintf("timed out waiting for accounts page to render (url=%s, debug=%s)", pageURL, dir),
+			Details:   fmt.Sprintf("accounts page not reachable after %d attempts: %v (url=%s, debug=%s)", maxAccountsNavAttempts, err, pageURL, dir),
 		}
 	}
 
@@ -622,7 +595,7 @@ func (s *Scraper) GetTransactions(ctx context.Context, accountID string, count i
 
 	// Step 4: Wait for SPA hash navigation to account detail page
 	stableCtx, stableCancel := context.WithTimeout(ctx, s.timeout)
-	err = s.page.Context(stableCtx).WaitDOMStable(time.Second, 0)
+	err := s.page.Context(stableCtx).WaitDOMStable(time.Second, 0)
 	stableCancel()
 	if err != nil {
 		s.debug.Screenshot(s.page, "GetTransactions", "dom-unstable")
@@ -983,6 +956,45 @@ func navigateTo(ctx context.Context, page *rod.Page, url string) error {
 	}
 	dismissAnnouncementModal(ctx, page)
 	return nil
+}
+
+// navigateToAccountsPage navigates to the accounts page and waits for Web
+// Components to render account data. Retries up to maxAccountsNavAttempts
+// times because the SPA framework intermittently fails to render route content.
+// Each retry triggers a fresh page load via cache-busted URL.
+func navigateToAccountsPage(ctx context.Context, page *rod.Page, timeout time.Duration, logger *slog.Logger) error {
+	var lastErr error
+	for attempt := 1; attempt <= maxAccountsNavAttempts; attempt++ {
+		navCtx, navCancel := context.WithTimeout(ctx, timeout)
+		err := navigateTo(navCtx, page, accountsURL)
+		navCancel()
+		if err != nil {
+			lastErr = fmt.Errorf("attempt %d: navigate: %w", attempt, err)
+			if attempt < maxAccountsNavAttempts {
+				logger.Warn("accounts page navigation failed, retrying",
+					slog.Int("attempt", attempt),
+					slog.Int("max_attempts", maxAccountsNavAttempts),
+					slog.Any("error", err))
+			}
+			continue
+		}
+
+		if waitForAccountsReady(ctx, page, timeout) {
+			if attempt > 1 {
+				logger.Info("accounts page loaded on retry",
+					slog.Int("attempt", attempt))
+			}
+			return nil
+		}
+
+		lastErr = fmt.Errorf("attempt %d: accounts did not render within %s", attempt, timeout)
+		if attempt < maxAccountsNavAttempts {
+			logger.Warn("accounts page did not render, retrying",
+				slog.Int("attempt", attempt),
+				slog.Int("max_attempts", maxAccountsNavAttempts))
+		}
+	}
+	return lastErr
 }
 
 // cacheBust inserts ?_=<nanosecond-timestamp> before the hash fragment.
