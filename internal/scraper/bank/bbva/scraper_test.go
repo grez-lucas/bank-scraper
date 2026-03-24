@@ -39,7 +39,7 @@ func skipUnlessMode(t *testing.T, required TestMode) {
 
 // requireLiveCreds reads BBVA credentials from environment variables.
 // Skips the test if any are missing.
-func requireLiveCreds(t *testing.T) Credentials {
+func requireLiveCreds(t *testing.T) map[string]string {
 	t.Helper()
 	company := os.Getenv("BBVA_COMPANY_CODE")
 	user := os.Getenv("BBVA_USER_CODE")
@@ -47,10 +47,10 @@ func requireLiveCreds(t *testing.T) Credentials {
 	if company == "" || user == "" || pass == "" {
 		t.Skip("Skipping: requires BBVA_COMPANY_CODE, BBVA_USER_CODE, BBVA_PASSWORD env vars")
 	}
-	return Credentials{
-		CompanyCode: company,
-		UserCode:    user,
-		Password:    pass,
+	return map[string]string{
+		"company_code": company,
+		"user_code":    user,
+		"password":     pass,
 	}
 }
 
@@ -81,10 +81,10 @@ func TestScraper_Login_ReplaySuccess_Integration(t *testing.T) {
 
 	// Test login (credentials don't matter in replay mode)
 	ctx := context.Background()
-	session, err := scraper.Login(ctx, Credentials{
-		CompanyCode: "test-company",
-		UserCode:    "test-user",
-		Password:    "test-password",
+	session, err := scraper.Login(ctx, map[string]string{
+		"company_code": "test-company",
+		"user_code":    "test-user",
+		"password":     "test-password",
 	})
 
 	require.NoError(t, err, "Login should succeed with recorded session")
@@ -123,10 +123,10 @@ func TestScraper_Login_ReplayError403BotDetection_Integration(t *testing.T) {
 
 	// Test login with (simulated) invalid credentials
 	ctx := context.Background()
-	session, err := scraper.Login(ctx, Credentials{
-		CompanyCode: "invalid",
-		UserCode:    "invalid",
-		Password:    "invalid",
+	session, err := scraper.Login(ctx, map[string]string{
+		"company_code": "invalid",
+		"user_code":    "invalid",
+		"password":     "invalid",
 	})
 
 	require.Error(t, err, "Login should fail with recorded error session")
@@ -166,10 +166,10 @@ func TestScraper_Login_ReplayErrorInvalidCredentials_Integration(t *testing.T) {
 	defer func() { _ = scraper.Close() }()
 
 	ctx := context.Background()
-	session, err := scraper.Login(ctx, Credentials{
-		CompanyCode: "invalid",
-		UserCode:    "invalid",
-		Password:    "invalid",
+	session, err := scraper.Login(ctx, map[string]string{
+		"company_code": "invalid",
+		"user_code":    "invalid",
+		"password":     "invalid",
 	})
 
 	require.Error(t, err, "Login should fail with recorded error session")
@@ -210,10 +210,10 @@ func TestScraper_Login_ReplayRelogin_Integration(t *testing.T) {
 	defer func() { _ = scraper.Close() }()
 
 	ctx := context.Background()
-	creds := Credentials{
-		CompanyCode: "test-company",
-		UserCode:    "test-user",
-		Password:    "test-password",
+	creds := map[string]string{
+		"company_code": "test-company",
+		"user_code":    "test-user",
+		"password":     "test-password",
 	}
 
 	// First login
@@ -257,10 +257,10 @@ func TestScraper_GetBalance_Replay_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	// Login first — hijacker stays alive for GetBalance navigation
-	_, err = scraper.Login(ctx, Credentials{
-		CompanyCode: "test-company",
-		UserCode:    "test-user",
-		Password:    "test-password",
+	_, err = scraper.Login(ctx, map[string]string{
+		"company_code": "test-company",
+		"user_code":    "test-user",
+		"password":     "test-password",
 	})
 	require.NoError(t, err, "Login should succeed")
 
@@ -310,10 +310,10 @@ func TestScraper_GetTransactions_Replay_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	// Login first
-	session, err := scraper.Login(ctx, Credentials{
-		CompanyCode: "test-company",
-		UserCode:    "test-user",
-		Password:    "test-pass",
+	session, err := scraper.Login(ctx, map[string]string{
+		"company_code": "test-company",
+		"user_code":    "test-user",
+		"password":     "test-pass",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, session)

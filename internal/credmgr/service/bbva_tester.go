@@ -35,13 +35,7 @@ func (t *ScraperCredentialTester) testBBVA(ctx context.Context, fields map[strin
 	}
 	defer func() { _ = scraper.Close() }()
 
-	creds := bbva.Credentials{
-		CompanyCode: fields["company_code"],
-		UserCode:    fields["user_code"],
-		Password:    fields["password"],
-	}
-
-	if _, err := scraper.Login(ctx, creds); err != nil {
+	if _, err := scraper.Login(ctx, fields); err != nil {
 		return fmt.Errorf("login failed: %w", err)
 	}
 

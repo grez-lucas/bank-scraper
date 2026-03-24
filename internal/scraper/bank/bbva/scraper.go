@@ -56,12 +56,42 @@ type Scraper struct {
 	logger   *slog.Logger
 }
 
-// Credentials holds BBVA login credentials.
-type Credentials struct {
-	CompanyCode string
-	UserCode    string
-	Password    string
+// credentials holds BBVA login fields (internal, mapped from generic map).
+type credentials struct {
+	companyCode string
+	userCode    string
+	password    string
 }
+
+// Credential field keys expected in the Login credentials map.
+const (
+	FieldCompanyCode = "company_code"
+	FieldUserCode    = "user_code"
+	FieldPassword    = "password"
+)
+
+// credentialsFromMap builds credentials from a generic field map.
+// Returns an error if any required field is missing.
+func credentialsFromMap(fields map[string]string) (credentials, error) {
+	c := credentials{
+		companyCode: fields[FieldCompanyCode],
+		userCode:    fields[FieldUserCode],
+		password:    fields[FieldPassword],
+	}
+	if c.companyCode == "" {
+		return credentials{}, fmt.Errorf("missing required field %q", FieldCompanyCode)
+	}
+	if c.userCode == "" {
+		return credentials{}, fmt.Errorf("missing required field %q", FieldUserCode)
+	}
+	if c.password == "" {
+		return credentials{}, fmt.Errorf("missing required field %q", FieldPassword)
+	}
+	return c, nil
+}
+
+// Ensure Scraper satisfies the bank.Scraper interface.
+var _ bank.Scraper = (*Scraper)(nil)
 
 // Option pattern for configuration
 type Option func(*Scraper)
@@ -128,8 +158,19 @@ func NewScraper(opts ...Option) (*Scraper, error) {
 }
 
 // Login authenticates with BBVA and returns a session.
-func (s *Scraper) Login(ctx context.Context, creds Credentials) (*bank.Session, error) {
+// Expected credential fields: "company_code", "user_code", "password".
+func (s *Scraper) Login(ctx context.Context, fields map[string]string) (*bank.Session, error) {
 	op := debug.StartOp(s.logger, "Login")
+
+	creds, err := credentialsFromMap(fields)
+	if err != nil {
+		return nil, &bank.ScraperError{
+			Code:      bank.BankBBVA,
+			Operation: "Login",
+			Cause:     bank.ErrInvalidCredentials,
+			Details:   err.Error(),
+		}
+	}
 
 	// Close previous page if re-logging in
 	if s.page != nil {
@@ -1130,12 +1171,12 @@ func waitForAccountsReady(ctx context.Context, page *rod.Page, timeout time.Dura
 	}
 }
 
-func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, string) error) error {
+func fillLoginForm(page *rod.Page, creds credentials, typeFn func(*rod.Element, string) error) error {
 	companyInput, err := page.Element(SelectorCompanyInput)
 	if err != nil {
 		return fmt.Errorf("company input not found: %w", err)
 	}
-	if err := typeFn(companyInput, creds.CompanyCode); err != nil {
+	if err := typeFn(companyInput, creds.companyCode); err != nil {
 		return fmt.Errorf("failed to type company code: %w", err)
 	}
 
@@ -1143,7 +1184,7 @@ func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, 
 	if err != nil {
 		return fmt.Errorf("user input not found: %w", err)
 	}
-	if err := typeFn(userInput, creds.UserCode); err != nil {
+	if err := typeFn(userInput, creds.userCode); err != nil {
 		return fmt.Errorf("failed to type user code: %w", err)
 	}
 
@@ -1151,7 +1192,7 @@ func fillLoginForm(page *rod.Page, creds Credentials, typeFn func(*rod.Element, 
 	if err != nil {
 		return fmt.Errorf("password input not found: %w", err)
 	}
-	if err := typeFn(passwordInput, creds.Password); err != nil {
+	if err := typeFn(passwordInput, creds.password); err != nil {
 		return fmt.Errorf("failed to type password: %w", err)
 	}
 	return nil
