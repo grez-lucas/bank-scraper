@@ -17,6 +17,7 @@ build:
 	@printf "$(ccyellow)Building... $(ccend)\n"
 	go build -o $(BIN_DIR)/bank-scraper ./cmd/main.go
 	go build -o $(BIN_DIR)/credmgr ./cmd/credmgr
+	go build -o $(BIN_DIR)/api ./cmd/api
 	@printf "$(ccgreen)Build done! Binaries at $(BIN_DIR)/$(ccend)\n"
 
 ## clean: remove build artifacts
@@ -162,6 +163,28 @@ credmgr-serve:
 .PHONY: docker-build
 docker-build:
 	docker build -t bank-scraper-credmgr .
+
+# ============================== #
+# API GATEWAY
+# ============================== #
+
+## api-serve: start the API gateway
+.PHONY: api-serve
+api-serve:
+	@set -a && . ./.env && set +a && \
+	go run ./cmd/api serve
+
+## api-create-key: create an API key (requires --client-id)
+.PHONY: api-create-key
+api-create-key:
+	@set -a && . ./.env && set +a && \
+	go run ./cmd/api create-key $(ARGS)
+
+## api-discover: trigger account discovery (requires --bank)
+.PHONY: api-discover
+api-discover:
+	@set -a && . ./.env && set +a && \
+	go run ./cmd/api discover $(ARGS)
 
 # ============================== #
 # FIXTURES

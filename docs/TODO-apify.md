@@ -41,14 +41,14 @@
 - [x] `internal/api/middleware/apikey.go` — Gin middleware: X-API-Key header → SHA-256 → DB lookup → revocation check → context injection
 - [x] `GetClientID(c)` helper to retrieve client_id from Gin context
 - [x] Unit tests: valid key, missing header, invalid key, revoked key, GetClientID (5 tests, all pass)
-- [ ] CLI command: `api create-key --client-id=<id> --description=<desc>` (deferred to M8 — entrypoint)
+- [x] CLI command: `api create-key --client-id=<id> --description=<desc>`
 
 ## M5 — Account Discovery Service ✅
 
 - [x] `internal/api/service/discovery.go` — DiscoveryService.Discover (dedicated scraper lifecycle: create → login → GetBalance → map → UpsertBatch → logout → close)
 - [x] `balancesToAccounts()` helper maps `[]bank.Balance` → `[]store.Account`
 - [x] Unit tests with mock scraper + mock account repo (6 tests, all pass)
-- [ ] DiscoveryTrigger wiring into credmgr handler (deferred to M8 — entrypoint)
+- [ ] DiscoveryTrigger wiring into credmgr handler (follow-up: requires modifying credmgr handler constructor)
 
 ## M6 — API Handlers + Router ✅
 
@@ -68,13 +68,14 @@
 - [x] Integration: `ResilientProvider` wraps `ScraperProvider` transparently — handlers get resilience without code changes
 - [x] Unit tests: error classification (9 cases), retry (5 tests), circuit breaker (2 tests), provider (2 tests) — 9 total, all pass
 
-## M8 — API Entrypoint + Integration
+## M8 — API Entrypoint + Integration ✅
 
-- [ ] `cmd/api/main.go` — CLI: serve, create-key, discover, migrate
-- [ ] Config additions: CircuitBreakerThreshold, CircuitBreakerResetTimeout, RetryMaxAttempts, RetryInitialDelay
-- [ ] Wiring: config → DB → repos → credential service → scraper factory → session manager → handlers → router
-- [ ] Graceful shutdown (SIGINT/SIGTERM → session manager shutdown → DB close)
-- [ ] Manual E2E test against live BBVA
+- [x] `cmd/api/main.go` — CLI: serve, create-key, discover, migrate, migrate-down, version
+- [x] Config additions: RetryMaxAttempts, RetryInitialDelay, RetryMaxDelay, CBMaxFailures, CBResetTimeout
+- [x] Wiring: config → DB → repos → credential service → scraper factory → session manager → resilient provider → handlers → router
+- [x] Graceful shutdown: SIGINT/SIGTERM → session manager shutdown → HTTP server shutdown → DB close
+- [x] Makefile targets: api-serve, api-create-key, api-discover + build target includes api binary
+- [ ] Manual E2E test against live BBVA (separate session)
 
 ---
 

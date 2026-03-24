@@ -31,6 +31,13 @@ type Config struct {
 	ScraperTimeout  time.Duration `envconfig:"SCRAPER_TIMEOUT" default:"30s"`
 	ScraperHeadless bool          `envconfig:"SCRAPER_HEADLESS" default:"true"`
 
+	// Resilience
+	RetryMaxAttempts           uint64        `envconfig:"RETRY_MAX_ATTEMPTS" default:"3"`
+	RetryInitialDelay          time.Duration `envconfig:"RETRY_INITIAL_DELAY" default:"1s"`
+	RetryMaxDelay              time.Duration `envconfig:"RETRY_MAX_DELAY" default:"30s"`
+	CircuitBreakerMaxFailures  uint32        `envconfig:"CB_MAX_FAILURES" default:"5"`
+	CircuitBreakerResetTimeout time.Duration `envconfig:"CB_RESET_TIMEOUT" default:"5m"`
+
 	// BBVA — backwards compatible with existing env vars.
 	// Will move to DB-managed credentials in a future milestone.
 	BBVA BBVAConfig `envconfig:"BBVA"`
