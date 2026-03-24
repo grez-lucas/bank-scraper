@@ -51,7 +51,7 @@ func truncateTables(t *testing.T, pool *pgxpool.Pool) {
 	defer cancel()
 
 	// Order matters: reverse FK dependency
-	tables := []string{"audit_logs", "bank_credentials", "sessions", "users"}
+	tables := []string{"audit_logs", "accounts", "api_keys", "bank_credentials", "sessions", "users"}
 	for _, table := range tables {
 		if _, err := pool.Exec(ctx, "TRUNCATE "+table+" CASCADE"); err != nil {
 			t.Fatalf("truncate %s: %v", table, err)
