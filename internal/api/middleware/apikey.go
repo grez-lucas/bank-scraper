@@ -16,17 +16,20 @@ const (
 	contextKeyClient = "client_id"
 )
 
+// errorJSON sends a standard error response and aborts the request.
+func errorJSON(c *gin.Context, status int, message string) {
+	c.AbortWithStatusJSON(status, gin.H{
+		"status":  "error",
+		"message": message,
+	})
+}
+
 // APIKeyAuth returns Gin middleware that validates the X-API-Key header.
-// It hashes the raw key with SHA-256, looks it up in the database,
-// checks revocation, and injects the client_id into the request context.
 func APIKeyAuth(repo store.APIKeyRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rawKey := c.GetHeader(headerAPIKey)
 		if rawKey == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"status":  "error",
-				"message": "missing API key",
-			})
+			errorJSON(c, http.StatusUnauthorized, "missing API key")
 			return
 		}
 
@@ -35,28 +38,18 @@ func APIKeyAuth(repo store.APIKeyRepository) gin.HandlerFunc {
 		apiKey, err := repo.GetByKeyHash(c.Request.Context(), hash[:])
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"status":  "error",
-					"message": "invalid API key",
-				})
+				errorJSON(c, http.StatusUnauthorized, "invalid API key")
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "internal error",
-			})
+			errorJSON(c, http.StatusInternalServerError, "internal error")
 			return
 		}
 
 		if apiKey.RevokedAt != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"status":  "error",
-				"message": "API key revoked",
-			})
+			errorJSON(c, http.StatusUnauthorized, "API key revoked")
 			return
 		}
 
-		// Best-effort async update of last_used_at (don't block the request)
 		go repo.UpdateLastUsed(context.Background(), apiKey.ID)
 
 		c.Set(contextKeyClient, apiKey.ClientID)

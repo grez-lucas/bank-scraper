@@ -43,24 +43,23 @@
 - [x] Unit tests: valid key, missing header, invalid key, revoked key, GetClientID (5 tests, all pass)
 - [ ] CLI command: `api create-key --client-id=<id> --description=<desc>` (deferred to M8 — entrypoint)
 
-## M5 — Account Discovery Service
+## M5 — Account Discovery Service ✅
 
-- [ ] `internal/api/service/discovery.go` — DiscoveryService.Discover (dedicated scraper instance, not singleton)
-- [ ] DiscoveryTrigger interface for credmgr integration
-- [ ] Wire into credmgr CredentialHandler (best-effort background call on Create/Update)
-- [ ] Unit tests with mock scraper + mock account repo
+- [x] `internal/api/service/discovery.go` — DiscoveryService.Discover (dedicated scraper lifecycle: create → login → GetBalance → map → UpsertBatch → logout → close)
+- [x] `balancesToAccounts()` helper maps `[]bank.Balance` → `[]store.Account`
+- [x] Unit tests with mock scraper + mock account repo (6 tests, all pass)
+- [ ] DiscoveryTrigger wiring into credmgr handler (deferred to M8 — entrypoint)
 
-## M6 — API Handlers + Router
+## M6 — API Handlers + Router ✅
 
-- [ ] `internal/api/handler/errors.go` — Standard error response format + error mapping helper
-- [ ] `internal/api/handler/account.go` — GET /api/v1/accounts (DB query, masked account numbers)
-- [ ] `internal/api/handler/balance.go` — GET /api/v1/accounts/:account_id/balance
-- [ ] `internal/api/handler/transaction.go` — GET /api/v1/accounts/:account_id/transactions (date filtering, pagination)
-- [ ] `internal/api/handler/health.go` — GET /api/v1/health (per-bank status, no scraping)
-- [ ] `internal/api/handler/discovery.go` — POST /api/v1/admin/discover/:bank_code
-- [ ] `internal/api/router.go` — Gin router with API key middleware
-- [ ] Response DTOs (AccountResponse, BalanceResponse, TransactionResponse, TransactionsListResponse)
-- [ ] Unit tests for each handler
+- [x] `internal/api/handler/response.go` — ErrorJSON, FormatAmount, MaskAccountNumber helpers + all response DTOs
+- [x] `internal/api/handler/account.go` — GET /api/v1/accounts (DB query, masked account numbers) — 4 tests
+- [x] `internal/api/handler/health.go` — GET /api/v1/health (per-bank status, DB ping, no scraping) — 4 tests
+- [x] `internal/api/handler/balance.go` — GET /api/v1/accounts/:account_id/balance — 5 tests
+- [x] `internal/api/handler/transaction.go` — GET /api/v1/accounts/:account_id/transactions (date filtering, pagination) — 5 tests
+- [x] `internal/api/handler/discovery.go` — POST /api/v1/admin/discover/:bank_code — 3 tests
+- [x] `internal/api/router.go` — Gin router with API key middleware, all 5 routes
+- [x] All 23 handler tests + 2 helper tests pass
 
 ## M7 — Retry + Circuit Breaker
 
