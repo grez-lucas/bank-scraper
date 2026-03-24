@@ -66,13 +66,11 @@ func NewAccountRepo(pool *pgxpool.Pool) *AccountRepo {
 const accountColumns = `id, bank_code, account_number, currency, account_type,
 	status, credential_id, last_synced_at, created_at, updated_at`
 
-func scanAccount(row pgx.Row) (*Account, error) {
-	a := &Account{}
-	err := row.Scan(
+func scanAccountInto(row pgx.Row, a *Account) error {
+	return row.Scan(
 		&a.ID, &a.BankCode, &a.AccountNumber, &a.Currency, &a.AccountType,
 		&a.Status, &a.CredentialID, &a.LastSyncedAt, &a.CreatedAt, &a.UpdatedAt,
 	)
-	return a, err
 }
 
 func (r *AccountRepo) Create(ctx context.Context, a *Account) error {
@@ -93,14 +91,15 @@ func (r *AccountRepo) Create(ctx context.Context, a *Account) error {
 func (r *AccountRepo) GetByID(ctx context.Context, id uuid.UUID) (*Account, error) {
 	query := `SELECT ` + accountColumns + ` FROM accounts WHERE id = $1`
 
-	a, err := scanAccount(r.pool.QueryRow(ctx, query, id))
+	var a Account
+	err := scanAccountInto(r.pool.QueryRow(ctx, query, id), &a)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("account %s: %w", id, ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get account by id: %w", err)
 	}
-	return a, nil
+	return &a, nil
 }
 
 func (r *AccountRepo) List(ctx context.Context, filter AccountFilter) ([]Account, error) {
@@ -135,11 +134,10 @@ func (r *AccountRepo) List(ctx context.Context, filter AccountFilter) ([]Account
 
 	var accounts []Account
 	for rows.Next() {
-		a, err := scanAccount(rows)
-		if err != nil {
+		accounts = append(accounts, Account{})
+		if err := scanAccountInto(rows, &accounts[len(accounts)-1]); err != nil {
 			return nil, fmt.Errorf("scan account: %w", err)
 		}
-		accounts = append(accounts, *a)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate accounts: %w", err)
