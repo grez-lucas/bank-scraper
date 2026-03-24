@@ -48,7 +48,7 @@
 - [x] `internal/api/service/discovery.go` — DiscoveryService.Discover (dedicated scraper lifecycle: create → login → GetBalance → map → UpsertBatch → logout → close)
 - [x] `balancesToAccounts()` helper maps `[]bank.Balance` → `[]store.Account`
 - [x] Unit tests with mock scraper + mock account repo (6 tests, all pass)
-- [ ] DiscoveryTrigger wiring into credmgr handler (follow-up: requires modifying credmgr handler constructor)
+- [x] DiscoveryTrigger wired into credmgr handler — Accounts view + Discover button in UI
 
 ## M6 — API Handlers + Router ✅
 

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -8,17 +10,53 @@ import (
 	"github.com/google/uuid"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/middleware"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
+	"github.com/grez-lucas/bank-scraper/internal/store"
 )
 
-// CredentialHandler handles credential CRUD operations.
+// Discoverer triggers bank account discovery.
+type Discoverer interface {
+	Discover(ctx context.Context, bankCode string, creds map[string]string, credentialID uuid.UUID) ([]store.Account, error)
+}
+
+// CredentialHandler handles credential CRUD and account discovery.
 type CredentialHandler struct {
-	creds *service.CredentialService
-	log   *slog.Logger
+	creds      *service.CredentialService
+	accounts   store.AccountRepository // nil if not wired
+	discoverer Discoverer              // nil if not wired
+	log        *slog.Logger
 }
 
 // NewCredentialHandler creates a new CredentialHandler.
-func NewCredentialHandler(creds *service.CredentialService, log *slog.Logger) *CredentialHandler {
-	return &CredentialHandler{creds: creds, log: log}
+// discoverer and accounts may be nil (discovery features will be disabled).
+func NewCredentialHandler(
+	creds *service.CredentialService,
+	logger *slog.Logger,
+	accounts store.AccountRepository,
+	discoverer Discoverer,
+) *CredentialHandler {
+	return &CredentialHandler{
+		creds:      creds,
+		accounts:   accounts,
+		discoverer: discoverer,
+		log:        logger,
+	}
+}
+
+// findCredential looks up a credential summary by ID.
+// Returns nil and logs an error if the lookup fails.
+func (h *CredentialHandler) findCredential(c *gin.Context, id uuid.UUID) *service.CredentialSummary {
+	user := middleware.GetUser(c)
+	creds, err := h.creds.List(c.Request.Context(), user.ID, c.ClientIP(), c.Request.UserAgent())
+	if err != nil {
+		h.log.Error("list credentials failed", slog.Any("error", err))
+		return nil
+	}
+	for i := range creds {
+		if creds[i].ID == id {
+			return &creds[i]
+		}
+	}
+	return nil
 }
 
 // List shows all credentials.
@@ -27,11 +65,12 @@ func (h *CredentialHandler) List(c *gin.Context) {
 	creds, err := h.creds.List(c.Request.Context(), user.ID, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		h.log.Error("list credentials failed", slog.Any("error", err))
-		setFlash(c, "error", "Failed to load credentials")
+		setFlash(c, flashError, "Failed to load credentials")
 	}
 	renderPage(c, http.StatusOK, "credentials_list.html", gin.H{
-		"Title":       "Credentials",
-		"Credentials": creds,
+		"Title":            "Credentials",
+		"Credentials":      creds,
+		"DiscoveryEnabled": h.discoverer != nil,
 	})
 }
 
@@ -63,7 +102,7 @@ func (h *CredentialHandler) Create(c *gin.Context) {
 		return
 	}
 
-	setFlash(c, "success", "Credential created successfully")
+	setFlash(c, flashSuccess, "Credential created successfully")
 	c.Redirect(http.StatusFound, "/credentials")
 }
 
@@ -75,18 +114,9 @@ func (h *CredentialHandler) Edit(c *gin.Context) {
 		return
 	}
 
-	// Get credential summary for pre-filling bank code and label
-	user := middleware.GetUser(c)
-	creds, _ := h.creds.List(c.Request.Context(), user.ID, c.ClientIP(), c.Request.UserAgent())
-	var found *service.CredentialSummary
-	for i := range creds {
-		if creds[i].ID == id {
-			found = &creds[i]
-			break
-		}
-	}
+	found := h.findCredential(c, id)
 	if found == nil {
-		setFlash(c, "error", "Credential not found")
+		setFlash(c, flashError, "Credential not found")
 		c.Redirect(http.StatusFound, "/credentials")
 		return
 	}
@@ -124,7 +154,7 @@ func (h *CredentialHandler) Update(c *gin.Context) {
 		return
 	}
 
-	setFlash(c, "success", "Credential updated successfully")
+	setFlash(c, flashSuccess, "Credential updated successfully")
 	c.Redirect(http.StatusFound, "/credentials")
 }
 
@@ -138,14 +168,14 @@ func (h *CredentialHandler) Delete(c *gin.Context) {
 
 	user := middleware.GetUser(c)
 	if err := h.creds.SoftDelete(c.Request.Context(), id, user.ID, c.ClientIP(), c.Request.UserAgent()); err != nil {
-		setFlash(c, "error", "Failed to delete credential")
+		setFlash(c, flashError, "Failed to delete credential")
 	} else {
-		setFlash(c, "success", "Credential deleted")
+		setFlash(c, flashSuccess, "Credential deleted")
 	}
 	c.Redirect(http.StatusFound, "/credentials")
 }
 
-// Test validates stored credentials against the bank by decrypting and attempting login.
+// Test validates stored credentials against the bank.
 func (h *CredentialHandler) Test(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -156,11 +186,90 @@ func (h *CredentialHandler) Test(c *gin.Context) {
 	user := middleware.GetUser(c)
 	if err := h.creds.TestByID(c.Request.Context(), id, user.ID, c.ClientIP(), c.Request.UserAgent()); err != nil {
 		h.log.Error("credential test failed", slog.String("id", id.String()), slog.Any("error", err))
-		setFlash(c, "error", "Credential test failed. The bank login did not succeed.")
+		setFlash(c, flashError, "Credential test failed. The bank login did not succeed.")
 	} else {
-		setFlash(c, "success", "Credential test passed!")
+		setFlash(c, flashSuccess, "Credential test passed!")
 	}
 	c.Redirect(http.StatusFound, "/credentials")
+}
+
+// Accounts shows the discovered accounts for a credential.
+func (h *CredentialHandler) Accounts(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.Redirect(http.StatusFound, "/credentials")
+		return
+	}
+
+	found := h.findCredential(c, id)
+	if found == nil {
+		setFlash(c, flashError, "Credential not found")
+		c.Redirect(http.StatusFound, "/credentials")
+		return
+	}
+
+	var accounts []store.Account
+	if h.accounts != nil {
+		bankCode := found.BankCode
+		accounts, err = h.accounts.List(c.Request.Context(), store.AccountFilter{BankCode: &bankCode})
+		if err != nil {
+			h.log.Error("list accounts failed", slog.Any("error", err))
+			setFlash(c, flashError, "Failed to load accounts")
+		}
+	}
+
+	renderPage(c, http.StatusOK, "credential_accounts.html", gin.H{
+		"Title":            fmt.Sprintf("Accounts — %s", found.BankCode),
+		"Credential":       found,
+		"Accounts":         accounts,
+		"DiscoveryEnabled": h.discoverer != nil,
+	})
+}
+
+// Discover triggers account discovery for a credential's bank.
+func (h *CredentialHandler) Discover(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.Redirect(http.StatusFound, "/credentials")
+		return
+	}
+
+	redirectURL := "/credentials/" + id.String() + "/accounts"
+
+	if h.discoverer == nil {
+		setFlash(c, flashError, "Account discovery is not configured")
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
+	found := h.findCredential(c, id)
+	if found == nil {
+		setFlash(c, flashError, "Credential not found")
+		c.Redirect(http.StatusFound, "/credentials")
+		return
+	}
+
+	fields, err := h.creds.GetCredentials(c.Request.Context(), found.BankCode)
+	if err != nil {
+		h.log.Error("decrypt credentials failed", slog.String("id", id.String()), slog.Any("error", err))
+		setFlash(c, flashError, "Failed to decrypt credentials")
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
+	accounts, err := h.discoverer.Discover(c.Request.Context(), found.BankCode, fields, id)
+	if err != nil {
+		h.log.Error("account discovery failed",
+			slog.String("bank", found.BankCode),
+			slog.String("credential_id", id.String()),
+			slog.Any("error", err))
+		setFlash(c, flashError, "Account discovery failed. Please check the credential and try again.")
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
+	setFlash(c, flashSuccess, fmt.Sprintf("Discovered %d account(s) for %s", len(accounts), found.BankCode))
+	c.Redirect(http.StatusFound, redirectURL)
 }
 
 func parsePlaintextCredential(c *gin.Context) service.PlaintextCredential {

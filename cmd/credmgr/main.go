@@ -18,10 +18,12 @@ import (
 	"strings"
 	"time"
 
+	apiservice "github.com/grez-lucas/bank-scraper/internal/api/service"
 	"github.com/grez-lucas/bank-scraper/internal/config"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/crypto"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/handler"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
+	scraperfactory "github.com/grez-lucas/bank-scraper/internal/scraper/factory"
 	"github.com/grez-lucas/bank-scraper/internal/store"
 	"github.com/joho/godotenv"
 	"github.com/pquerna/otp/totp"
@@ -101,11 +103,14 @@ func serve(cfg *config.Config) error {
 
 	logger := slog.Default()
 
+	pool := db.Pool()
+
 	// Create repositories
-	userRepo := store.NewUserRepo(db.Pool())
-	sessionRepo := store.NewSessionRepo(db.Pool())
-	auditRepo := store.NewAuditLogRepo(db.Pool())
-	credRepo := store.NewCredentialRepo(db.Pool())
+	userRepo := store.NewUserRepo(pool)
+	sessionRepo := store.NewSessionRepo(pool)
+	auditRepo := store.NewAuditLogRepo(pool)
+	credRepo := store.NewCredentialRepo(pool)
+	accountRepo := store.NewAccountRepo(pool)
 
 	// Create services
 	aw := service.NewAuditWriter(auditRepo, logger)
@@ -113,8 +118,19 @@ func serve(cfg *config.Config) error {
 	tester := service.NewScraperCredentialTester()
 	credSvc := service.NewCredentialService(credRepo, aw, mk, tester, logger)
 
+	// Account discovery service
+	discoverySvc := apiservice.NewDiscoveryService(accountRepo, scraperfactory.New(cfg.ScraperTimeout, cfg.ScraperHeadless), logger)
+
 	// Setup and start router
-	router := handler.SetupRouter(authSvc, credSvc, auditRepo, aw, logger)
+	router := handler.SetupRouter(handler.RouterDeps{
+		Auth:        authSvc,
+		Creds:       credSvc,
+		AuditRepo:   auditRepo,
+		AuditWriter: aw,
+		Logger:      logger,
+		AccountRepo: accountRepo,
+		Discoverer:  discoverySvc,
+	})
 
 	addr := fmt.Sprintf(":%d", cfg.CredMgrPort)
 	fmt.Printf("Credential Manager starting on http://localhost%s\n", addr)

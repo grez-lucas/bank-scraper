@@ -33,8 +33,7 @@ import (
 	"github.com/grez-lucas/bank-scraper/internal/config"
 	"github.com/grez-lucas/bank-scraper/internal/credmgr/crypto"
 	credservice "github.com/grez-lucas/bank-scraper/internal/credmgr/service"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank/bbva"
+	scraperfactory "github.com/grez-lucas/bank-scraper/internal/scraper/factory"
 	"github.com/grez-lucas/bank-scraper/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -121,8 +120,8 @@ func serve(cfg *config.Config) error {
 	// Credential service (read-only — used as CredentialProvider)
 	credSvc := newCredService(pool, mk, logger)
 
-	// Scraper factory (BBVA only for now)
-	factory := newScraperFactory(cfg)
+	// Scraper factory
+	factory := scraperfactory.New(cfg.ScraperTimeout, cfg.ScraperHeadless)
 
 	// Session manager
 	sessionMgr := session.NewManager(credSvc, factory, logger)
@@ -284,8 +283,7 @@ func discover(cfg *config.Config) error {
 		return fmt.Errorf("get credential record: %w", err)
 	}
 
-	factory := newScraperFactory(cfg)
-	discoverySvc := service.NewDiscoveryService(accountRepo, factory, logger)
+	discoverySvc := service.NewDiscoveryService(accountRepo, scraperfactory.New(cfg.ScraperTimeout, cfg.ScraperHeadless), logger)
 
 	fmt.Printf("Discovering accounts for %s...\n", bankCode)
 	accounts, err := discoverySvc.Discover(ctx, bankCode, creds, cred.ID)
@@ -321,20 +319,6 @@ func newCredService(pool *pgxpool.Pool, mk crypto.MasterKey, logger *slog.Logger
 	auditRepo := store.NewAuditLogRepo(pool)
 	aw := credservice.NewAuditWriter(auditRepo, logger)
 	return credservice.NewCredentialService(credRepo, aw, mk, nil, logger)
-}
-
-func newScraperFactory(cfg *config.Config) bank.ScraperFactory {
-	return func(bankCode bank.Code) (bank.Scraper, error) {
-		switch bankCode {
-		case bank.BankBBVA:
-			return bbva.NewScraper(
-				bbva.WithTimeout(cfg.ScraperTimeout),
-				bbva.WithHeadless(cfg.ScraperHeadless),
-			)
-		default:
-			return nil, fmt.Errorf("unsupported bank: %s", bankCode)
-		}
-	}
 }
 
 // parseFlag extracts a CLI flag value from os.Args.
