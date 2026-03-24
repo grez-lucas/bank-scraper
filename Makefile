@@ -41,12 +41,20 @@ fmt:
 .PHONY: tidy
 tidy: fmt
 
-## test: run all tests
+## test: run unit tests (no DB, no browser)
 .PHONY: test
 test:
-	@printf "$(ccyellow)Testing files... $(ccend)\n"
+	@printf "$(ccyellow)Running unit tests... $(ccend)\n"
 	go test -v ./... -short
-	@printf "$(ccgreen)Testing files done!$(ccend)\n"
+	@printf "$(ccgreen)Unit tests done!$(ccend)\n"
+
+## test-db: run store/repo integration tests (requires PostgreSQL)
+.PHONY: test-db
+test-db:
+	@printf "$(ccyellow)Running database tests... $(ccend)\n"
+	@set -a && . ./.env && set +a && \
+	go test -v ./internal/store/... -count=1
+	@printf "$(ccgreen)Database tests done!$(ccend)\n"
 
 ## test-integration: run with recorded sessions
 .PHONY: test-integration
