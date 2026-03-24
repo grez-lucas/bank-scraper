@@ -1,0 +1,96 @@
+# TODO: API Gateway Epic
+
+> Exposes bank scraper data to AyniFX via a REST API with API key auth, account discovery, session management, and resilience.
+
+## Architecture Decision Records
+
+- [x] ADR-010: API Key Authentication (`docs/adr/ADR-010-api-key-authentication.md`)
+- [x] ADR-011: Account Discovery and Persistence (`docs/adr/ADR-011-account-discovery.md`)
+- [x] ADR-012: Scraper Session Management — Lazy Singleton (`docs/adr/ADR-012-scraper-session-management.md`)
+- [x] ADR-013: Scraper Interface — Generic Credentials (`docs/adr/ADR-013-scraper-interface-generic-credentials.md`)
+- [x] ADR-014: Resilience — Retry and Circuit Breaker (`docs/adr/ADR-014-resilience-retry-circuit-breaker.md`)
+
+---
+
+## M1 — Database: Accounts + API Keys ✅
+
+- [x] Migration 000006: `accounts` table (id, bank_code, account_number, currency, account_type, status, credential_id FK, last_synced_at)
+- [x] Migration 000007: `api_keys` table (id, key_hash, client_id, description, created_at, revoked_at, last_used_at)
+- [x] `internal/store/account.go` — AccountRepository (Create, GetByID, List with filters, UpsertBatch, UpdateLastSynced)
+- [x] `internal/store/apikey.go` — APIKeyRepository (Create, GetByKeyHash, Revoke, UpdateLastUsed, List)
+- [x] Integration tests for both repositories (17 tests, all pass)
+
+## M2 — Scraper Interface Redesign ✅
+
+- [x] Redesign `bank.Scraper` interface: Login(ctx, map[string]string), GetBalance(ctx), GetTransactions(ctx, accountID, count), Logout(ctx), Close()
+- [x] Adapt BBVA scraper Login to accept `map[string]string` (maps to internal `credentials` struct)
+- [x] Add compile-time interface check: `var _ bank.Scraper = (*Scraper)(nil)`
+- [x] Update `bbva_tester.go` — pass fields map directly (removed `bbva.Credentials` dependency)
+- [x] Update all scraper tests — 15 calls migrated from struct to map
+- [x] Verify: full project compiles, all parser + credmgr tests pass
+
+## M3 — Session Manager (Lazy Singleton) ✅
+
+- [x] `internal/api/session/manager.go` — Manager with GetScraper, Invalidate, Shutdown, SessionStatus
+- [x] CredentialProvider interface (satisfied by CredentialService.GetCredentials)
+- [x] ScraperFactory type (BBVA only for now)
+- [x] Unit tests with mock scraper + mock credential provider (10 tests, all pass)
+
+## M4 — API Key Middleware ✅
+
+- [x] `internal/api/middleware/apikey.go` — Gin middleware: X-API-Key header → SHA-256 → DB lookup → revocation check → context injection
+- [x] `GetClientID(c)` helper to retrieve client_id from Gin context
+- [x] Unit tests: valid key, missing header, invalid key, revoked key, GetClientID (5 tests, all pass)
+- [ ] CLI command: `api create-key --client-id=<id> --description=<desc>` (deferred to M8 — entrypoint)
+
+## M5 — Account Discovery Service
+
+- [ ] `internal/api/service/discovery.go` — DiscoveryService.Discover (dedicated scraper instance, not singleton)
+- [ ] DiscoveryTrigger interface for credmgr integration
+- [ ] Wire into credmgr CredentialHandler (best-effort background call on Create/Update)
+- [ ] Unit tests with mock scraper + mock account repo
+
+## M6 — API Handlers + Router
+
+- [ ] `internal/api/handler/errors.go` — Standard error response format + error mapping helper
+- [ ] `internal/api/handler/account.go` — GET /api/v1/accounts (DB query, masked account numbers)
+- [ ] `internal/api/handler/balance.go` — GET /api/v1/accounts/:account_id/balance
+- [ ] `internal/api/handler/transaction.go` — GET /api/v1/accounts/:account_id/transactions (date filtering, pagination)
+- [ ] `internal/api/handler/health.go` — GET /api/v1/health (per-bank status, no scraping)
+- [ ] `internal/api/handler/discovery.go` — POST /api/v1/admin/discover/:bank_code
+- [ ] `internal/api/router.go` — Gin router with API key middleware
+- [ ] Response DTOs (AccountResponse, BalanceResponse, TransactionResponse, TransactionsListResponse)
+- [ ] Unit tests for each handler
+
+## M7 — Retry + Circuit Breaker
+
+- [ ] `internal/api/resilience/retry.go` — Exponential backoff (3 attempts, 1s→30s) with error classification
+- [ ] `internal/api/resilience/circuitbreaker.go` — Per-bank circuit breaker (5 failures → open, 5min reset)
+- [ ] Integrate into balance and transaction handlers
+- [ ] Unit tests with error injection
+
+## M8 — API Entrypoint + Integration
+
+- [ ] `cmd/api/main.go` — CLI: serve, create-key, discover, migrate
+- [ ] Config additions: CircuitBreakerThreshold, CircuitBreakerResetTimeout, RetryMaxAttempts, RetryInitialDelay
+- [ ] Wiring: config → DB → repos → credential service → scraper factory → session manager → handlers → router
+- [ ] Graceful shutdown (SIGINT/SIGTERM → session manager shutdown → DB close)
+- [ ] Manual E2E test against live BBVA
+
+---
+
+## Dependency Graph
+
+```
+M1 (DB) ──────────┬──── M4 (API key middleware)
+                   │
+M2 (Interface) ──┬── M3 (Session manager)
+                  ├── M5 (Discovery)
+                  └─────── M6 (Handlers) ← M1, M3, M4, M5
+                                │
+                          M7 (Resilience)
+                                │
+                          M8 (Integration)
+```
+
+Parallelizable: M1 ∥ M2, then M3 ∥ M4 ∥ M5.

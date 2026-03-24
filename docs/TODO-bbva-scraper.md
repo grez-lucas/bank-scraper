@@ -3,29 +3,36 @@
 ## Roadmap
 
 1. ~~**GetBalance** — scraper method to fetch account balances~~ **DONE**
-2. **GetTransactions** — scraper method to fetch transaction history (this doc)
+2. ~~**GetTransactions** — scraper method to fetch transaction history~~ **DONE** (live-tested, pending transient bank error handling)
 3. **API layer** — REST API exposing Login, GetBalance, GetTransactions to AyniFX
 
 ## What's Already Done
 
 | Component | Status |
 |-----------|--------|
-| `Login` | Working — HAR replay tested (success, invalid creds, re-login). Uses Senda `#enviarSenda` flow. |
-| `Login` replay (Senda probe) | Working — separate-tab `probeSendaAPI` bypasses broken iframe postMessage chain in replay mode. Classifies grantingTicket 200→success, 403→error with error-code. |
+| `Login` | Working — HAR replay tested (success, invalid creds, re-login). Uses Senda `#enviarSenda` flow. Anti-detection: stealth launcher flags, human-like typing, random delays. |
+| `Login` replay (Senda probe) | Working — separate-tab `probeSendaAPI` bypasses broken iframe postMessage chain in replay mode. |
 | `waitForLoginOutcome` | Working — dual-path: probe for replay mode, DOM polling (URL redirect + span#error-message) for live mode. |
-| `classifySendaError` | Working — handles both UI text (live) and API probe format `"senda API error-code NNN"` (replay). Unit tested. |
+| `classifySendaError` | Working — handles both UI text (live) and API probe format. Unit tested. |
 | `classifySendaErrorCode` | Working — maps Senda error codes (160, 162) to typed errors. Unit tested. |
-| HijackRouter context fix | Working — router created before `page.Timeout()` to prevent `CancelTimeout()` from killing router's event context. |
-| `GetBalance` | Working — navigates to accounts page, flattens shadow DOM, delegates to parser. |
+| HijackRouter context fix | Working — router created before `page.Timeout()` to prevent context kill. |
+| `GetBalance` | **Working (live-tested)** — navigates to accounts page, dismisses modal, waits for Web Components, flattens shadow DOM + iframes, delegates to parser. |
+| `GetTransactions` | **Working (live-tested)** — navigates to transactions page, waits for table render, flattens shadow DOM + iframes, pagination loop with "Ver más". Returns empty slice on bank error page. |
 | `ParseAccountBalances` | Working — unit tested against `accounts_list` and `accounts_tile` fixtures |
 | `ParseTransactions` | Working — unit tested against `transactions` fixture (50 rows) |
+| `HasMoreTransactions` | Working — detects "Ver más" pagination footer |
 | `DetectAnnouncementModal` | Working — unit tested against 6 fixtures + edge cases |
-| `dismissAnnouncementModal` | Working — called after login and in `navigateTo`. Skipped in replay mode. |
-| `navigateTo` helper | Working — navigate + wait load + DOM stable + dismiss modal |
-| Page lifecycle | Working — page stored on `BBVAScraper`, cleaned up on failure/re-login/close |
-| Hijacker lifetime | Working — router stored on `BBVAScraper`, kept alive between operations, stopped on close/re-login/failure |
+| `dismissAnnouncementModal` | Working — uses `deepQuery` to find buttons through nested shadow roots. Called after every `navigateTo`. |
+| `navigateTo` helper | Working — navigates via `about:blank` (forces full reload after FlattenShadowDOM mutations), waits for load + DOM stable, dismisses modal |
+| `waitForAccountsReady` | Working — polls with `DeepQueryExists`/`DeepQueryAttr` (crosses shadow DOM + iframes) |
+| `waitForTransactionsReady` | Working — detects data rows, `noresults`, and error states |
+| `deepQuery` (`browser/query.go`) | Working — JS helper that walks shadow DOM, light DOM, and iframe boundaries. Used by `DeepQueryExists`, `DeepQueryClick`, `DeepQueryAttr`. |
 | `FlattenShadowDOM` | Working — in `browser/shadow.go`, tested |
+| Page lifecycle | Working — page stored on `BBVAScraper`, cleaned up on failure/re-login/close |
+| Hijacker lifetime | Working — router stored on `BBVAScraper`, kept alive between operations |
 | Selectors | All defined in `selectors.go` for accounts (list + tile) and transactions |
+| Debug diagnostics | Working — screenshots + HTML dumps + deepQuery diagnostics written to `os.TempDir()/bbva-debug/` on timeouts |
+| Context handling | Idiomatic Go contexts throughout: `page.Context(ctx)` + `context.WithTimeout`, per-phase deadlines |
 
 ## Test Status
 
@@ -35,19 +42,32 @@
 | `TestBBVAScraper_Login_ReplayErrorInvalidCredentials_Integration` | replay | PASS |
 | `TestBBVAScraper_Login_ReplayRelogin_Integration` | replay | PASS |
 | `TestBBVAScraper_Login_ReplayError403BotDetection_Integration` | replay | SKIP — needs re-recorded HAR with `#enviarSenda` |
-| `TestBBVAScraper_GetBalance_Replay_Integration` | replay | SKIP — portal SPA can't initialize in CDP Fetch replay (see below) |
+| `TestBBVAScraper_GetBalance_Replay_Integration` | replay | SKIP — portal SPA can't initialize in CDP Fetch replay |
+| `TestBBVAScraper_Live_Login` | live | PASS |
+| `TestBBVAScraper_Live_GetBalance` | live | PASS |
+| `TestBBVAScraper_Live_GetTransactions_FirstAccount` | live | PASS |
+| `TestBBVAScraper_Live_GetTransactions_SecondAccount` | live | PASS (intermittent bank error page) |
 | `TestClassifySendaError` | mock | PASS (9 cases) |
 | `TestClassifySendaErrorCode` | mock | PASS (4 cases) |
+| All parser unit tests | mock | PASS |
+
+---
+
+## ~~Pending: Wire `ctx context.Context` Through Scraper~~ DONE
+
+Refactored all scraper methods to use idiomatic Go contexts:
+- `page.Timeout()`/`CancelTimeout()` replaced with `page.Context(ctx)` + `context.WithTimeout(ctx, ...)`
+- All poll loops use `select` on `ctx.Done()` via derived contexts
+- `MustWaitDOMStable()` replaced with `WaitDOMStable(time.Second, 0)`
+- Each method has per-phase contexts: navigation → wait → flatten/parse
+- `dismissAnnouncementModal` uses a 3s derived context
+- `probeSendaAPI` uses `context.WithTimeout`
 
 ---
 
 ## Blocked: GetBalance / GetTransactions Replay Tests
 
 The portal SPA (Cells/Polymer framework) **cannot initialize in CDP Fetch replay mode**. CDP Fetch's `FetchFulfillRequest` bypasses cookie processing — `Set-Cookie` headers from replayed responses are NOT stored in the browser. The Cells framework's bootstrap chain requires auth cookies and `tsec` session tokens set during the real login redirect, so Custom Elements never register and the page renders empty shells with no shadow DOM content.
-
-**Attempted and failed:**
-- Injecting `tsec` into `sessionStorage`/`localStorage` — Cells framework stores session data through its own mechanisms
-- Navigating to `portalURL` after probe success — resources load but framework doesn't bootstrap
 
 **Possible approaches:**
 1. **Direct API probe** (like login) — identify the internal API endpoints the portal calls for balance/transaction data and probe them directly via the separate-tab technique. Most promising.
@@ -62,85 +82,40 @@ The portal SPA (Cells/Polymer framework) **cannot initialize in CDP Fetch replay
 
 ---
 
-## Next: Implement `GetTransactions`
+## Pending: Transactions Bank Error Handling
 
-### Overview
+The bank intermittently returns "La información no está disponible" on the transactions page. Current behavior: `waitForTransactionsReady` detects the terminal state (no timeout), then `ParseTransactions` returns an empty slice.
 
-`GetTransactions` navigates to the transactions page for a specific account, flattens shadow DOM, and delegates to the existing `ParseTransactions` parser.
+**Improvements needed:**
+1. Detect the error state explicitly (look for error message text or specific `state` attribute value)
+2. Return a typed error like `bank.ErrBankUnavailable` instead of an empty slice
+3. Consider retry logic — the error is transient ("inténtalo de nuevo más tarde")
 
-```
-s.page  →  navigateTo(txURL)  →  FlattenShadowDOM(page)  →  ParseTransactions(html)  →  []bank.Transaction
-```
+---
 
-### 1. Add transactions URL pattern
+## Pending: GetBalance Returns Tile View Only
 
-**File:** `scraper.go`
+Live testing shows `GetBalance` returns tile view balances (available only, `current=0`). The list view has both available and accounted balances. Consider:
+1. Switching to list view before scraping (click the list toggle button)
+2. Or accepting tile view data if available balance is sufficient
 
-```go
-// transactionsURL builds the URL for a specific account's movements page
-func transactionsURL(accountID string) string {
-    return baseURL + "/nextgenempresas/portal/index.html#!/bbva-btge-accounts-solution/account/" + accountID + "/movements"
-}
-```
+---
 
-### 2. Add `GetTransactions` method
+## Lessons Learned
 
-**File:** `scraper.go`
+### DOM Traversal: Three Boundaries
 
-```go
-func (s *BBVAScraper) GetTransactions(ctx context.Context, accountID string) ([]bank.Transaction, error)
-```
+BBVA's portal has three DOM boundaries that standard `querySelector` cannot cross:
+1. **Shadow DOM** — `element.shadowRoot`
+2. **Light DOM (slotted)** — Polymer projects children via `<slot>`
+3. **Iframes** — micro-frontends load in same-origin iframes nested inside shadow roots
 
-Implementation:
-- Guard: check `s.page != nil`, return `ErrSessionExpired` if nil
-- Call `navigateTo(s.page, transactionsURL(accountID))`
-- Call `browser.FlattenShadowDOM(s.page)`
-- Call `ParseTransactions(html)` — already tested
-- Wrap errors in `bank.ScraperError{BankCode: BankBBVA, Operation: "GetTransactions", ...}`
+The `deepQuery` helper (`browser/query.go`) crosses all three. This was the key breakthrough — initial implementations only crossed shadow DOM, causing 30s timeouts because account/transaction elements live inside iframes.
 
-### 3. Pagination: "Ver mas" button
+### FlattenShadowDOM Mutates the DOM
 
-The transactions page shows 50 rows at a time. To get all transactions, we need to:
-1. Parse current page
-2. Check if "Ver mas" button exists
-3. Click it, wait for DOM stable
-4. Re-flatten and re-parse
-5. Repeat until no more "Ver mas"
+`FlattenShadowDOM()` inlines shadow content and replaces iframes with divs. This **destroys the SPA's DOM structure**. Hash-only URL changes (SPA routing) don't reload the page, so the SPA can't recover. Fix: `navigateTo` navigates to `about:blank` first, forcing a full page reload.
 
-**Open question:** Should pagination be handled inside `GetTransactions` or as a separate concern? Consider:
-- Simple: loop inside GetTransactions until all pages loaded
-- Complex: return a page token and let caller decide
+### Modal Buttons in Nested Shadow Roots
 
-### 4. Integration test
-
-**File:** `scraper_test.go`
-
-```go
-func TestBBVAScraper_GetTransactions_Replay_Integration(t *testing.T) {
-    skipUnlessMode(t, TestModeReplay)
-    // Loads get-transactions.har.json (login + navigate to transactions)
-    // Calls Login, then GetTransactions
-    // Asserts transactions returned
-}
-```
-
-### 5. Capture HAR recording
-
-```bash
-go run ./scripts/record-session -bank=bbva -scenario=get-transactions
-```
-
-### Verification
-
-```bash
-# Unit tests (already passing)
-go test ./internal/scraper/bank/bbva/... -v -run TestParseTransactions
-
-# Integration test (after HAR is captured)
-SCRAPER_TEST_MODE=replay go test ./internal/scraper/bank/bbva/... -v -run TestBBVAScraper_GetTransactions
-
-# Full suite
-SCRAPER_TEST_MODE=replay go test ./internal/scraper/bank/bbva/... -v
-go build ./...
-go vet ./...
-```
+The announcement modal's buttons are inside nested shadow roots (modal → shadowRoot → bbva-button → shadowRoot → `<button>`). `Element.matches()` with descendant selectors cannot see ancestors across shadow boundaries. Fix: use `deepQuery(modal, 'button')` to walk the modal's entire shadow tree.
