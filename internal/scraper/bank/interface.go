@@ -37,3 +37,6 @@ const (
 	BankInterbank Code = "INTERBANK"
 	BankBCP       Code = "BCP"
 )
+
+// ScraperFactory creates a new Scraper instance for the given bank code.
+type ScraperFactory func(bankCode Code) (Scraper, error)

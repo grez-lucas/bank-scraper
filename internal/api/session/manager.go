@@ -19,14 +19,11 @@ type CredentialProvider interface {
 	GetCredentials(ctx context.Context, bankCode string) (map[string]string, error)
 }
 
-// ScraperFactory creates a new bank scraper instance for the given bank code.
-type ScraperFactory func(bankCode bank.Code) (bank.Scraper, error)
-
 // SessionInfo describes the state of a managed scraper session.
 type SessionInfo struct {
 	BankCode  bank.Code
 	Active    bool
-	ExpiresAt *time.Time
+	ExpiresAt time.Time
 }
 
 // managedScraper holds a scraper and its session metadata.
@@ -36,47 +33,69 @@ type managedScraper struct {
 }
 
 // Manager manages lazy singleton scraper instances per bank.
-// Thread-safe via mutex.
+// Uses per-bank locking so Login for one bank doesn't block cached lookups for others.
 type Manager struct {
-	mu       sync.Mutex
-	scrapers map[bank.Code]*managedScraper
+	mu       sync.Mutex                    // protects the scrapers map itself
+	scrapers map[bank.Code]*managedScraper // cached scraper instances
+	locks    map[bank.Code]*sync.Mutex     // per-bank lock for Login serialization
 	creds    CredentialProvider
-	factory  ScraperFactory
+	factory  bank.ScraperFactory
 	logger   *slog.Logger
 }
 
 // NewManager creates a new session manager.
-func NewManager(creds CredentialProvider, factory ScraperFactory, logger *slog.Logger) *Manager {
+func NewManager(creds CredentialProvider, factory bank.ScraperFactory, logger *slog.Logger) *Manager {
 	return &Manager{
 		scrapers: make(map[bank.Code]*managedScraper),
+		locks:    make(map[bank.Code]*sync.Mutex),
 		creds:    creds,
 		factory:  factory,
 		logger:   logger,
 	}
 }
 
+// bankLock returns (or creates) the per-bank mutex.
+func (m *Manager) bankLock(bankCode bank.Code) *sync.Mutex {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.locks[bankCode]; !ok {
+		m.locks[bankCode] = &sync.Mutex{}
+	}
+	return m.locks[bankCode]
+}
+
 // GetScraper returns a logged-in scraper for the given bank.
 // On first call, it creates and authenticates a new scraper.
 // On subsequent calls, it returns the cached scraper if the session is still valid.
 // If the session has expired, it closes the old scraper and creates a fresh one.
+//
+// Uses per-bank locking so a slow Login for one bank doesn't block cached lookups for others.
 func (m *Manager) GetScraper(ctx context.Context, bankCode bank.Code) (bank.Scraper, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	bl := m.bankLock(bankCode)
+	bl.Lock()
+	defer bl.Unlock()
 
-	// Check for existing active session
-	if ms, ok := m.scrapers[bankCode]; ok {
-		if time.Now().Before(ms.session.ExpiresAt) {
-			return ms.scraper, nil
-		}
-		// Session expired — close old scraper
+	// Check for existing active session (brief map read under global lock)
+	m.mu.Lock()
+	ms, ok := m.scrapers[bankCode]
+	m.mu.Unlock()
+
+	if ok && time.Now().Before(ms.session.ExpiresAt) {
+		return ms.scraper, nil
+	}
+
+	// Session expired or doesn't exist — clean up old one if present
+	if ok {
 		m.logger.Info("session expired, creating new scraper",
 			slog.String("bank", string(bankCode)),
 			slog.String("session_id", ms.session.ID))
 		_ = ms.scraper.Close()
+		m.mu.Lock()
 		delete(m.scrapers, bankCode)
+		m.mu.Unlock()
 	}
 
-	// Create new scraper
+	// Create new scraper (slow: launches browser)
 	scraper, err := m.factory(bankCode)
 	if err != nil {
 		return nil, fmt.Errorf("create scraper for %s: %w", bankCode, err)
@@ -89,17 +108,19 @@ func (m *Manager) GetScraper(ctx context.Context, bankCode bank.Code) (bank.Scra
 		return nil, fmt.Errorf("get credentials for %s: %w", bankCode, err)
 	}
 
-	// Login
+	// Login (slow: 15-20s for BBVA)
 	session, err := scraper.Login(ctx, creds)
 	if err != nil {
 		_ = scraper.Close()
 		return nil, fmt.Errorf("login to %s: %w", bankCode, err)
 	}
 
+	m.mu.Lock()
 	m.scrapers[bankCode] = &managedScraper{
 		scraper: scraper,
 		session: session,
 	}
+	m.mu.Unlock()
 
 	m.logger.Info("scraper session created",
 		slog.String("bank", string(bankCode)),
@@ -111,47 +132,47 @@ func (m *Manager) GetScraper(ctx context.Context, bankCode bank.Code) (bank.Scra
 
 // Invalidate removes and closes the scraper for a bank.
 // The next GetScraper call will create a fresh instance.
-// Use this when a scraper operation returns ErrSessionExpired.
 func (m *Manager) Invalidate(bankCode bank.Code) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	ms, ok := m.scrapers[bankCode]
+	if ok {
+		delete(m.scrapers, bankCode)
+	}
+	m.mu.Unlock()
 
-	if ms, ok := m.scrapers[bankCode]; ok {
+	if ok {
 		m.logger.Info("invalidating scraper session",
 			slog.String("bank", string(bankCode)))
 		_ = ms.scraper.Close()
-		delete(m.scrapers, bankCode)
 	}
 }
 
 // Shutdown logs out and closes all active scrapers.
-// Call this on graceful server shutdown.
 func (m *Manager) Shutdown(ctx context.Context) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	scrapers := m.scrapers
+	m.scrapers = make(map[bank.Code]*managedScraper)
+	m.mu.Unlock()
 
-	for code, ms := range m.scrapers {
+	for code, ms := range scrapers {
 		m.logger.Info("shutting down scraper",
 			slog.String("bank", string(code)))
 		_ = ms.scraper.Logout(ctx)
 		_ = ms.scraper.Close()
 	}
-	m.scrapers = make(map[bank.Code]*managedScraper)
 }
 
 // SessionStatus returns the current state of all managed sessions.
-// Used by the health endpoint to report per-bank status without triggering scraping.
 func (m *Manager) SessionStatus() []SessionInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	infos := make([]SessionInfo, 0, len(m.scrapers))
 	for code, ms := range m.scrapers {
-		exp := ms.session.ExpiresAt
 		infos = append(infos, SessionInfo{
 			BankCode:  code,
-			Active:    time.Now().Before(exp),
-			ExpiresAt: &exp,
+			Active:    time.Now().Before(ms.session.ExpiresAt),
+			ExpiresAt: ms.session.ExpiresAt,
 		})
 	}
 	return infos

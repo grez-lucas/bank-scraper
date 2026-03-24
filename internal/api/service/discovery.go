@@ -11,20 +11,17 @@ import (
 	"github.com/grez-lucas/bank-scraper/internal/store"
 )
 
-// ScraperFactory creates a new bank scraper instance for a given bank code.
-type ScraperFactory func(bankCode bank.Code) (bank.Scraper, error)
-
 // DiscoveryService discovers bank accounts by logging in and fetching balances.
 // It uses a dedicated scraper instance (not the API's live singleton) to avoid
 // interfering with active sessions.
 type DiscoveryService struct {
 	accounts store.AccountRepository
-	factory  ScraperFactory
+	factory  bank.ScraperFactory
 	logger   *slog.Logger
 }
 
 // NewDiscoveryService creates a new DiscoveryService.
-func NewDiscoveryService(accounts store.AccountRepository, factory ScraperFactory, logger *slog.Logger) *DiscoveryService {
+func NewDiscoveryService(accounts store.AccountRepository, factory bank.ScraperFactory, logger *slog.Logger) *DiscoveryService {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -47,11 +44,12 @@ func (d *DiscoveryService) Discover(ctx context.Context, bankCode string, creds 
 		return nil, fmt.Errorf("create scraper for %s: %w", bankCode, err)
 	}
 
-	// Ensure cleanup regardless of outcome
+	// Ensure cleanup regardless of outcome.
+	// Use context.Background for cleanup since the original ctx may be cancelled.
 	loggedIn := false
 	defer func() {
 		if loggedIn {
-			_ = scraper.Logout(ctx)
+			_ = scraper.Logout(context.Background())
 		}
 		_ = scraper.Close()
 	}()
@@ -92,7 +90,7 @@ func balancesToAccounts(bankCode string, balances []bank.Balance) []store.Accoun
 			BankCode:      bankCode,
 			AccountNumber: b.AccountID,
 			Currency:      string(b.Currency),
-			AccountType:   "checking", // Default; banks don't always expose account type
+			AccountType:   store.AccountTypeChecking,
 		}
 	}
 	return accounts

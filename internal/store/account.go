@@ -18,6 +18,12 @@ const (
 	AccountStatusInactive = "inactive"
 )
 
+// Account type constants.
+const (
+	AccountTypeChecking = "checking"
+	AccountTypeSavings  = "savings"
+)
+
 // Account represents a discovered bank account.
 type Account struct {
 	ID            uuid.UUID
@@ -147,6 +153,12 @@ func (r *AccountRepo) UpsertBatch(ctx context.Context, credentialID uuid.UUID, a
 		return nil
 	}
 
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin upsert batch: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	query := `
 		INSERT INTO accounts (bank_code, account_number, currency, account_type, credential_id)
 		VALUES ($1, $2, $3, $4, $5)
@@ -157,7 +169,7 @@ func (r *AccountRepo) UpsertBatch(ctx context.Context, credentialID uuid.UUID, a
 			updated_at = now()`
 
 	for i, a := range accounts {
-		_, err := r.pool.Exec(ctx, query,
+		_, err := tx.Exec(ctx, query,
 			a.BankCode, a.AccountNumber, a.Currency, a.AccountType, credentialID,
 		)
 		if err != nil {
@@ -165,6 +177,9 @@ func (r *AccountRepo) UpsertBatch(ctx context.Context, credentialID uuid.UUID, a
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit upsert batch: %w", err)
+	}
 	return nil
 }
 

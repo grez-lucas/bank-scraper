@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"net/http"
@@ -55,8 +56,8 @@ func APIKeyAuth(repo store.APIKeyRepository) gin.HandlerFunc {
 			return
 		}
 
-		// Best-effort update of last_used_at
-		_ = repo.UpdateLastUsed(c.Request.Context(), apiKey.ID)
+		// Best-effort async update of last_used_at (don't block the request)
+		go repo.UpdateLastUsed(context.Background(), apiKey.ID)
 
 		c.Set(contextKeyClient, apiKey.ClientID)
 		c.Next()

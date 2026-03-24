@@ -22,8 +22,7 @@ type mockAPIKeyRepo struct {
 	key *store.APIKey
 	err error
 
-	lastUsedCalled bool
-	lastUsedID     uuid.UUID
+	lastUsedCh chan uuid.UUID // signals when UpdateLastUsed is called
 }
 
 func (m *mockAPIKeyRepo) Create(_ context.Context, _ *store.APIKey) error { return nil }
@@ -41,8 +40,9 @@ func (m *mockAPIKeyRepo) GetByKeyHash(_ context.Context, _ []byte) (*store.APIKe
 }
 
 func (m *mockAPIKeyRepo) UpdateLastUsed(_ context.Context, id uuid.UUID) error {
-	m.lastUsedCalled = true
-	m.lastUsedID = id
+	if m.lastUsedCh != nil {
+		m.lastUsedCh <- id
+	}
 	return nil
 }
 
@@ -93,12 +93,14 @@ func TestAPIKeyAuth_ValidKey(t *testing.T) {
 	hash := sha256.Sum256([]byte(rawKey))
 	keyID := uuid.New()
 
+	ch := make(chan uuid.UUID, 1)
 	repo := &mockAPIKeyRepo{
 		key: &store.APIKey{
 			ID:       keyID,
 			KeyHash:  hash[:],
 			ClientID: "aynifx",
 		},
+		lastUsedCh: ch,
 	}
 
 	router := setupRouter(repo)
@@ -110,8 +112,13 @@ func TestAPIKeyAuth_ValidKey(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "aynifx", resp["client_id"])
 
-	assert.True(t, repo.lastUsedCalled, "should update last_used_at")
-	assert.Equal(t, keyID, repo.lastUsedID)
+	// Wait for async UpdateLastUsed goroutine
+	select {
+	case id := <-ch:
+		assert.Equal(t, keyID, id)
+	case <-time.After(time.Second):
+		t.Fatal("UpdateLastUsed was not called within 1s")
+	}
 }
 
 func TestAPIKeyAuth_MissingHeader(t *testing.T) {

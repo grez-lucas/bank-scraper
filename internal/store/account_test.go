@@ -25,7 +25,7 @@ func TestAccountRepo_Create(t *testing.T) {
 		BankCode:      "BBVA",
 		AccountNumber: "001-12345678-0-01",
 		Currency:      "PEN",
-		AccountType:   "checking",
+		AccountType:   AccountTypeChecking,
 		CredentialID:  cred.ID,
 	}
 
@@ -33,7 +33,7 @@ func TestAccountRepo_Create(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, uuid.Nil, a.ID)
-	assert.Equal(t, "active", a.Status)
+	assert.Equal(t, AccountStatusActive, a.Status)
 	assert.Nil(t, a.LastSyncedAt)
 	assert.False(t, a.CreatedAt.IsZero())
 	assert.False(t, a.UpdatedAt.IsZero())
@@ -87,7 +87,7 @@ func TestAccountRepo_GetByID(t *testing.T) {
 	assert.Equal(t, "BBVA", fetched.BankCode)
 	assert.Equal(t, "001-11111111-0-01", fetched.AccountNumber)
 	assert.Equal(t, "PEN", fetched.Currency)
-	assert.Equal(t, "checking", fetched.AccountType)
+	assert.Equal(t, AccountTypeChecking, fetched.AccountType)
 	assert.Equal(t, "active", fetched.Status)
 	assert.Equal(t, cred.ID, fetched.CredentialID)
 }
@@ -242,7 +242,7 @@ func createTestAccount(t *testing.T, repo *AccountRepo, credentialID uuid.UUID, 
 		BankCode:      bankCode,
 		AccountNumber: accountNumber,
 		Currency:      currency,
-		AccountType:   "checking",
+		AccountType:   AccountTypeChecking,
 		CredentialID:  credentialID,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

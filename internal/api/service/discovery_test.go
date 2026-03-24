@@ -131,7 +131,7 @@ func TestDiscoveryService_Discover_Success(t *testing.T) {
 	assert.Equal(t, "BBVA", accounts[0].BankCode)
 	assert.Equal(t, "PE001101190100064607", accounts[0].AccountNumber)
 	assert.Equal(t, "PEN", accounts[0].Currency)
-	assert.Equal(t, "checking", accounts[0].AccountType)
+	assert.Equal(t, store.AccountTypeChecking, accounts[0].AccountType)
 
 	// Verify second account mapping
 	assert.Equal(t, "BBVA", accounts[1].BankCode)

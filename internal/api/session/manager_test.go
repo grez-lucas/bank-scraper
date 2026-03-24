@@ -246,7 +246,7 @@ func TestManager_SessionStatus(t *testing.T) {
 	require.Len(t, statuses, 1)
 	assert.Equal(t, bank.BankBBVA, statuses[0].BankCode)
 	assert.True(t, statuses[0].Active)
-	assert.NotNil(t, statuses[0].ExpiresAt)
+	assert.False(t, statuses[0].ExpiresAt.IsZero())
 }
 
 func TestManager_SessionStatus_ExpiredSession(t *testing.T) {

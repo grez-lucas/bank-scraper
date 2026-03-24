@@ -65,27 +65,25 @@ type credentials struct {
 
 // Credential field keys expected in the Login credentials map.
 const (
-	FieldCompanyCode = "company_code"
-	FieldUserCode    = "user_code"
-	FieldPassword    = "password"
+	fieldCompanyCode = "company_code"
+	fieldUserCode    = "user_code"
+	fieldPassword    = "password"
 )
 
-// credentialsFromMap builds credentials from a generic field map.
-// Returns an error if any required field is missing.
 func credentialsFromMap(fields map[string]string) (credentials, error) {
 	c := credentials{
-		companyCode: fields[FieldCompanyCode],
-		userCode:    fields[FieldUserCode],
-		password:    fields[FieldPassword],
+		companyCode: fields[fieldCompanyCode],
+		userCode:    fields[fieldUserCode],
+		password:    fields[fieldPassword],
 	}
 	if c.companyCode == "" {
-		return credentials{}, fmt.Errorf("missing required field %q", FieldCompanyCode)
+		return credentials{}, fmt.Errorf("missing required field %q", fieldCompanyCode)
 	}
 	if c.userCode == "" {
-		return credentials{}, fmt.Errorf("missing required field %q", FieldUserCode)
+		return credentials{}, fmt.Errorf("missing required field %q", fieldUserCode)
 	}
 	if c.password == "" {
-		return credentials{}, fmt.Errorf("missing required field %q", FieldPassword)
+		return credentials{}, fmt.Errorf("missing required field %q", fieldPassword)
 	}
 	return c, nil
 }
