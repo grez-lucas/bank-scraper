@@ -1,0 +1,26 @@
+meta {
+  name: List Accounts - Filter by Currency
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts?currency=PEN
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("all accounts are PEN", function() {
+    res.body.accounts.forEach(acct => {
+      expect(acct.currency).to.equal("PEN");
+    });
+  });
+}

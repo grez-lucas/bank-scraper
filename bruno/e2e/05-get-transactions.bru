@@ -1,0 +1,42 @@
+meta {
+  name: E2E 05 - Get Transactions
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/{{account_id}}/transactions
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("transactions fetched successfully", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("has transaction list structure", function() {
+    expect(res.body.account_id).to.equal(bru.getVar("account_id"));
+    expect(res.body.bank_code).to.equal("BBVA");
+    expect(res.body.transactions).to.be.an("array");
+    expect(res.body.pagination).to.be.an("object");
+  });
+  test("transactions have required fields", function() {
+    if (res.body.transactions.length > 0) {
+      const tx = res.body.transactions[0];
+      expect(tx.id).to.be.a("string");
+      expect(tx.date).to.be.a("string");
+      expect(tx.description).to.be.a("string");
+      expect(tx.amount).to.be.a("string");
+      expect(tx.type).to.be.oneOf(["CREDIT", "DEBIT"]);
+    }
+  });
+  test("pagination metadata present", function() {
+    expect(res.body.pagination.total_count).to.be.a("number");
+    expect(res.body.pagination.page).to.equal(1);
+    expect(res.body.pagination.page_size).to.be.a("number");
+  });
+}

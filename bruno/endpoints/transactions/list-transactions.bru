@@ -1,0 +1,48 @@
+meta {
+  name: List Transactions (defaults)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/{{account_id}}/transactions
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+vars:pre-request {
+  account_id: SET_ME
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("has transaction list structure", function() {
+    expect(res.body.account_id).to.be.a("string");
+    expect(res.body.bank_code).to.be.a("string");
+    expect(res.body.currency).to.be.oneOf(["PEN", "USD"]);
+    expect(res.body.from_date).to.match(/^\d{4}-\d{2}-\d{2}$/);
+    expect(res.body.to_date).to.match(/^\d{4}-\d{2}-\d{2}$/);
+    expect(res.body.transactions).to.be.an("array");
+    expect(res.body.pagination).to.be.an("object");
+    expect(res.body.fetched_at).to.be.a("string");
+  });
+  test("pagination has required fields", function() {
+    const p = res.body.pagination;
+    expect(p.total_count).to.be.a("number");
+    expect(p.page).to.be.a("number");
+    expect(p.page_size).to.be.a("number");
+    expect(p.has_more).to.be.a("boolean");
+  });
+  test("default date range is ~7 days", function() {
+    const from = new Date(res.body.from_date);
+    const to = new Date(res.body.to_date);
+    const days = (to - from) / (1000 * 60 * 60 * 24);
+    expect(days).to.be.within(6, 8);
+  });
+}

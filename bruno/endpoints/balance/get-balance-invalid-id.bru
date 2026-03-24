@@ -1,0 +1,25 @@
+meta {
+  name: Get Balance - Invalid ID (400)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/not-a-uuid/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("returns 400 for invalid UUID", function() {
+    expect(res.status).to.equal(400);
+  });
+  test("error response format", function() {
+    expect(res.body.status).to.equal("error");
+    expect(res.body.message).to.include("invalid");
+  });
+}

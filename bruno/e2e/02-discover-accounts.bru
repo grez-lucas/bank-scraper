@@ -1,0 +1,32 @@
+meta {
+  name: E2E 02 - Discover Accounts
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{api_base_url}}/api/v1/admin/discover/BBVA
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("discovery succeeds", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("discovered at least 1 account", function() {
+    expect(res.body.accounts).to.be.an("array");
+    expect(res.body.accounts.length).to.be.greaterThan(0);
+  });
+}
+
+script:post-response {
+  const accounts = res.body.accounts;
+  if (accounts && accounts.length > 0) {
+    bru.setVar("discovered_count", accounts.length);
+  }
+}

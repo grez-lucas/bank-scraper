@@ -1,0 +1,27 @@
+meta {
+  name: E2E 06 - Health After Scrape
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{api_base_url}}/api/v1/health
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("system still healthy", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("healthy");
+  });
+  test("BBVA session is active", function() {
+    expect(res.body.banks).to.have.property("BBVA");
+    expect(res.body.banks.BBVA.status).to.equal("healthy");
+    expect(res.body.banks.BBVA.last_successful_connection).to.be.a("string");
+  });
+}

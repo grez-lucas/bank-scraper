@@ -1,0 +1,29 @@
+meta {
+  name: List Transactions - Invalid Range (400)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/{{account_id}}/transactions?from_date=2025-01-01&to_date=2026-03-24
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+vars:pre-request {
+  account_id: SET_ME
+}
+
+tests {
+  test("returns 400 for range > 90 days", function() {
+    expect(res.status).to.equal(400);
+  });
+  test("error mentions range", function() {
+    expect(res.body.status).to.equal("error");
+    expect(res.body.message).to.include("90 days");
+  });
+}

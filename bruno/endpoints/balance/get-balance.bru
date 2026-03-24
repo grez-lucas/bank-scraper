@@ -1,0 +1,33 @@
+meta {
+  name: Get Balance
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/{{account_id}}/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+vars:pre-request {
+  account_id: SET_ME
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("has balance fields", function() {
+    expect(res.body.account_id).to.be.a("string");
+    expect(res.body.bank_code).to.be.a("string");
+    expect(res.body.currency).to.be.oneOf(["PEN", "USD"]);
+    expect(res.body.available_balance).to.match(/^\d+\.\d{2}$/);
+    expect(res.body.current_balance).to.match(/^\d+\.\d{2}$/);
+    expect(res.body.fetched_at).to.be.a("string");
+  });
+}

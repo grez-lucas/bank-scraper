@@ -1,0 +1,32 @@
+meta {
+  name: List Transactions - Pagination
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/{{account_id}}/transactions?page=1&page_size=5
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+vars:pre-request {
+  account_id: SET_ME
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("respects page_size", function() {
+    expect(res.body.transactions.length).to.be.at.most(5);
+  });
+  test("pagination reflects page_size", function() {
+    expect(res.body.pagination.page).to.equal(1);
+    expect(res.body.pagination.page_size).to.equal(5);
+  });
+}

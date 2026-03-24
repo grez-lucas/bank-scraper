@@ -1,0 +1,24 @@
+meta {
+  name: E2E 01 - Health Check
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{api_base_url}}/api/v1/health
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("API is reachable", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("system is healthy", function() {
+    expect(res.body.status).to.be.oneOf(["healthy", "degraded"]);
+  });
+}

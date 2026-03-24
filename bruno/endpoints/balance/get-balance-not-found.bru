@@ -1,0 +1,25 @@
+meta {
+  name: Get Balance - Not Found (404)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/00000000-0000-0000-0000-000000000000/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("returns 404 for unknown account", function() {
+    expect(res.status).to.equal(404);
+  });
+  test("error response format", function() {
+    expect(res.body.status).to.equal("error");
+    expect(res.body.message).to.include("not found");
+  });
+}

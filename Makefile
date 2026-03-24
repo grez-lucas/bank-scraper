@@ -64,6 +64,14 @@ test-integration:
 	SCRAPER_TEST_MODE=replay go test ./internal/scraper/bank/... -v
 	@printf "$(ccgreen)Testing files done!$(ccend)\n"
 
+## test-e2e: run Bruno E2E flow against live API (requires running API + TEST_API_KEY)
+.PHONY: test-e2e
+test-e2e:
+	@printf "$(ccyellow)Running E2E tests via Bruno...$(ccend)\n"
+	@set -a && . ./.env && set +a && \
+	bru run bruno/e2e/ --env local
+	@printf "$(ccgreen)E2E tests done!$(ccend)\n"
+
 ## test-live: run against live banks (dangerous!!)
 .PHONY: test-live
 test-live:

@@ -1,0 +1,42 @@
+meta {
+  name: E2E 03 - List Accounts
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts?bank_code=BBVA
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("accounts were persisted", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.accounts).to.be.an("array");
+    expect(res.body.accounts.length).to.be.greaterThan(0);
+  });
+  test("accounts are BBVA", function() {
+    res.body.accounts.forEach(acct => {
+      expect(acct.bank_code).to.equal("BBVA");
+    });
+  });
+  test("account numbers are masked", function() {
+    res.body.accounts.forEach(acct => {
+      expect(acct.account_number).to.match(/^X+/);
+    });
+  });
+}
+
+script:post-response {
+  const accounts = res.body.accounts;
+  if (accounts && accounts.length > 0) {
+    // Store the first account's ID for subsequent requests
+    bru.setVar("account_id", accounts[0].account_id);
+    bru.setVar("account_currency", accounts[0].currency);
+  }
+}

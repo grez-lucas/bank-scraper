@@ -1,0 +1,26 @@
+meta {
+  name: List Accounts - Filter by Bank
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts?bank_code=BBVA
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("all accounts are BBVA", function() {
+    res.body.accounts.forEach(acct => {
+      expect(acct.bank_code).to.equal("BBVA");
+    });
+  });
+}

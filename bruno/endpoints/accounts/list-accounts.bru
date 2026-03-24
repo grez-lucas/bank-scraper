@@ -1,0 +1,34 @@
+meta {
+  name: List Accounts
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("returns accounts array", function() {
+    expect(res.body.accounts).to.be.an("array");
+  });
+  test("each account has required fields", function() {
+    if (res.body.accounts.length > 0) {
+      const acct = res.body.accounts[0];
+      expect(acct.account_id).to.be.a("string");
+      expect(acct.bank_code).to.be.a("string");
+      expect(acct.currency).to.be.oneOf(["PEN", "USD"]);
+      expect(acct.account_number).to.match(/^X+/);
+      expect(acct.status).to.be.a("string");
+    }
+  });
+}

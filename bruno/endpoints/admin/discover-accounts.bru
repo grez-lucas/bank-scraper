@@ -1,0 +1,32 @@
+meta {
+  name: Discover Accounts - BBVA
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{api_base_url}}/api/v1/admin/discover/BBVA
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("returns accounts array", function() {
+    expect(res.body.accounts).to.be.an("array");
+    expect(res.body.accounts.length).to.be.greaterThan(0);
+  });
+  test("each account has required fields", function() {
+    res.body.accounts.forEach(acct => {
+      expect(acct.bank_code).to.equal("BBVA");
+      expect(acct.currency).to.be.oneOf(["PEN", "USD"]);
+      expect(acct.account_number).to.match(/^X+/);
+    });
+  });
+}

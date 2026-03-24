@@ -1,0 +1,29 @@
+meta {
+  name: List Transactions - Custom Dates
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts/{{account_id}}/transactions?from_date=2026-03-01&to_date=2026-03-24
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+vars:pre-request {
+  account_id: SET_ME
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("respects custom date range", function() {
+    expect(res.body.from_date).to.equal("2026-03-01");
+    expect(res.body.to_date).to.equal("2026-03-24");
+  });
+}

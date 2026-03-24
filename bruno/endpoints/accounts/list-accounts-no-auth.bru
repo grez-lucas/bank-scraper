@@ -1,0 +1,21 @@
+meta {
+  name: List Accounts - No Auth (401)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{api_base_url}}/api/v1/accounts
+  body: none
+  auth: none
+}
+
+tests {
+  test("returns 401 without API key", function() {
+    expect(res.status).to.equal(401);
+  });
+  test("error response format", function() {
+    expect(res.body.status).to.equal("error");
+    expect(res.body.message).to.be.a("string");
+  });
+}

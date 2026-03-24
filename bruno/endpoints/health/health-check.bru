@@ -1,0 +1,30 @@
+meta {
+  name: Health Check
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{api_base_url}}/api/v1/health
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{api_key}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("has status field", function() {
+    expect(res.body.status).to.be.oneOf(["healthy", "degraded", "unavailable"]);
+  });
+  test("has timestamp", function() {
+    expect(res.body.timestamp).to.be.a("string");
+  });
+  test("has banks object", function() {
+    expect(res.body.banks).to.be.an("object");
+  });
+}

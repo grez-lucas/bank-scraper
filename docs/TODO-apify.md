@@ -75,7 +75,8 @@
 - [x] Wiring: config → DB → repos → credential service → scraper factory → session manager → resilient provider → handlers → router
 - [x] Graceful shutdown: SIGINT/SIGTERM → session manager shutdown → HTTP server shutdown → DB close
 - [x] Makefile targets: api-serve, api-create-key, api-discover + build target includes api binary
-- [ ] Manual E2E test against live BBVA (separate session)
+- [x] E2E tests: Bruno collection at `bruno/` with 6-step E2E flow + 17 individual endpoint tests
+- [ ] Run E2E against live BBVA: `make test-e2e` (requires running API + BBVA credentials)
 
 ---
 
