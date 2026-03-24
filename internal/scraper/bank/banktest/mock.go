@@ -24,6 +24,7 @@ type MockScraper struct {
 	CloseCalled  int
 }
 
+// Login implements bank.Scraper.
 func (m *MockScraper) Login(_ context.Context, _ map[string]string) (*bank.Session, error) {
 	m.LoginCalled++
 	if m.LoginErr != nil {
@@ -32,6 +33,7 @@ func (m *MockScraper) Login(_ context.Context, _ map[string]string) (*bank.Sessi
 	return m.LoginSession, nil
 }
 
+// GetBalance implements bank.Scraper.
 func (m *MockScraper) GetBalance(_ context.Context) ([]bank.Balance, error) {
 	if m.BalanceErr != nil {
 		return nil, m.BalanceErr
@@ -39,6 +41,7 @@ func (m *MockScraper) GetBalance(_ context.Context) ([]bank.Balance, error) {
 	return m.Balances, nil
 }
 
+// GetTransactions implements bank.Scraper.
 func (m *MockScraper) GetTransactions(_ context.Context, _ string, _ int) ([]bank.Transaction, error) {
 	if m.TransactionsErr != nil {
 		return nil, m.TransactionsErr
@@ -46,11 +49,13 @@ func (m *MockScraper) GetTransactions(_ context.Context, _ string, _ int) ([]ban
 	return m.Transactions, nil
 }
 
+// Logout implements bank.Scraper.
 func (m *MockScraper) Logout(_ context.Context) error {
 	m.LogoutCalled++
 	return nil
 }
 
+// Close implements bank.Scraper.
 func (m *MockScraper) Close() error {
 	m.CloseCalled++
 	return nil

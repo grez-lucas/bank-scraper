@@ -54,6 +54,7 @@ func NewCredentialRepo(pool *pgxpool.Pool) *CredentialRepo {
 	return &CredentialRepo{pool: pool}
 }
 
+// Create inserts a new bank credential and populates its generated fields.
 func (r *CredentialRepo) Create(ctx context.Context, c *BankCredential) error {
 	query := `
 		INSERT INTO bank_credentials (bank_code, account_label, credentials_enc, credentials_dek, created_by, updated_by)
@@ -81,6 +82,7 @@ func scanCredential(row pgx.Row) (*BankCredential, error) {
 	return c, err
 }
 
+// GetByID retrieves a bank credential by its UUID.
 func (r *CredentialRepo) GetByID(ctx context.Context, id uuid.UUID) (*BankCredential, error) {
 	query := `SELECT ` + credentialColumns + ` FROM bank_credentials WHERE id = $1`
 
@@ -94,6 +96,7 @@ func (r *CredentialRepo) GetByID(ctx context.Context, id uuid.UUID) (*BankCreden
 	return c, nil
 }
 
+// GetActiveByBankCode retrieves the active credential for a given bank code.
 func (r *CredentialRepo) GetActiveByBankCode(ctx context.Context, bankCode string) (*BankCredential, error) {
 	query := `SELECT ` + credentialColumns + ` FROM bank_credentials WHERE bank_code = $1 AND status = $2`
 
@@ -107,6 +110,7 @@ func (r *CredentialRepo) GetActiveByBankCode(ctx context.Context, bankCode strin
 	return c, nil
 }
 
+// List returns all active bank credentials ordered by creation date descending.
 func (r *CredentialRepo) List(ctx context.Context) ([]BankCredential, error) {
 	query := `SELECT ` + credentialColumns + ` FROM bank_credentials WHERE status = $1 ORDER BY created_at DESC`
 
@@ -131,6 +135,7 @@ func (r *CredentialRepo) List(ctx context.Context) ([]BankCredential, error) {
 	return creds, nil
 }
 
+// Update modifies an active credential and increments its version.
 func (r *CredentialRepo) Update(ctx context.Context, c *BankCredential) error {
 	query := `
 		UPDATE bank_credentials
@@ -151,6 +156,7 @@ func (r *CredentialRepo) Update(ctx context.Context, c *BankCredential) error {
 	return nil
 }
 
+// SoftDelete marks an active credential as deleted without removing its row.
 func (r *CredentialRepo) SoftDelete(ctx context.Context, id, deletedBy uuid.UUID) error {
 	query := `
 		UPDATE bank_credentials
@@ -167,6 +173,7 @@ func (r *CredentialRepo) SoftDelete(ctx context.Context, id, deletedBy uuid.UUID
 	return nil
 }
 
+// HardDeleteExpired permanently removes soft-deleted credentials older than retentionDays.
 func (r *CredentialRepo) HardDeleteExpired(ctx context.Context, retentionDays int) (int64, error) {
 	query := `DELETE FROM bank_credentials WHERE status = $1 AND deleted_at < now() - make_interval(days => $2)`
 

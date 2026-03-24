@@ -26,10 +26,10 @@ func (m *mockPinger) Ping(_ interface{}) error {
 }
 
 type mockSessionStatus struct {
-	infos []session.SessionInfo
+	infos []session.Info
 }
 
-func (m *mockSessionStatus) SessionStatus() []session.SessionInfo {
+func (m *mockSessionStatus) SessionStatus() []session.Info {
 	return m.infos
 }
 
@@ -39,7 +39,7 @@ func TestHealthHandler_Check_Healthy(t *testing.T) {
 	h := NewHealthHandler(
 		func() error { return nil },
 		&mockSessionStatus{
-			infos: []session.SessionInfo{
+			infos: []session.Info{
 				{BankCode: bank.BankBBVA, Active: true, ExpiresAt: time.Now().Add(5 * time.Minute)},
 			},
 		},
@@ -106,7 +106,7 @@ func TestHealthHandler_Check_ExpiredSession(t *testing.T) {
 	h := NewHealthHandler(
 		func() error { return nil },
 		&mockSessionStatus{
-			infos: []session.SessionInfo{
+			infos: []session.Info{
 				{BankCode: bank.BankBBVA, Active: false, ExpiresAt: time.Now().Add(-1 * time.Minute)},
 			},
 		},

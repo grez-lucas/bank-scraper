@@ -14,7 +14,7 @@ type DBPinger func() error
 
 // SessionStatusProvider returns per-bank session info without triggering scraping.
 type SessionStatusProvider interface {
-	SessionStatus() []session.SessionInfo
+	SessionStatus() []session.Info
 }
 
 // KnownBanksProvider returns the list of bank codes that the system is configured to support.

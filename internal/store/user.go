@@ -45,6 +45,7 @@ func NewUserRepo(pool *pgxpool.Pool) *UserRepo {
 	return &UserRepo{pool: pool}
 }
 
+// Create inserts a new user and populates its generated fields.
 func (r *UserRepo) Create(ctx context.Context, u *User) error {
 	query := `
 		INSERT INTO users (username, password_hash, totp_secret_enc, totp_secret_dek)
@@ -74,6 +75,7 @@ func scanUser(row pgx.Row) (*User, error) {
 	return u, err
 }
 
+// GetByID retrieves a user by their UUID.
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `SELECT ` + userColumns + ` FROM users WHERE id = $1`
 
@@ -87,6 +89,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	return u, nil
 }
 
+// GetByUsername retrieves a user by their username.
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*User, error) {
 	query := `SELECT ` + userColumns + ` FROM users WHERE username = $1`
 
@@ -100,6 +103,7 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*User, e
 	return u, nil
 }
 
+// IncrementFailedAttempts adds one to the user's failed login counter and returns the new count.
 func (r *UserRepo) IncrementFailedAttempts(ctx context.Context, id uuid.UUID) (int, error) {
 	query := `
 		UPDATE users SET failed_attempts = failed_attempts + 1, updated_at = now()
@@ -117,6 +121,7 @@ func (r *UserRepo) IncrementFailedAttempts(ctx context.Context, id uuid.UUID) (i
 	return count, nil
 }
 
+// ResetFailedAttempts clears the failed login counter and removes any lock.
 func (r *UserRepo) ResetFailedAttempts(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE users SET failed_attempts = 0, locked_until = NULL, updated_at = now() WHERE id = $1`
 
@@ -130,6 +135,7 @@ func (r *UserRepo) ResetFailedAttempts(ctx context.Context, id uuid.UUID) error 
 	return nil
 }
 
+// LockUntil sets the user's locked_until timestamp to prevent login.
 func (r *UserRepo) LockUntil(ctx context.Context, id uuid.UUID, until time.Time) error {
 	query := `UPDATE users SET locked_until = $2, updated_at = now() WHERE id = $1`
 

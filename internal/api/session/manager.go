@@ -19,8 +19,8 @@ type CredentialProvider interface {
 	GetCredentials(ctx context.Context, bankCode string) (map[string]string, error)
 }
 
-// SessionInfo describes the state of a managed scraper session.
-type SessionInfo struct {
+// Info describes the state of a managed scraper session.
+type Info struct {
 	BankCode  bank.Code
 	Active    bool
 	ExpiresAt time.Time
@@ -163,13 +163,13 @@ func (m *Manager) Shutdown(ctx context.Context) {
 }
 
 // SessionStatus returns the current state of all managed sessions.
-func (m *Manager) SessionStatus() []SessionInfo {
+func (m *Manager) SessionStatus() []Info {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	infos := make([]SessionInfo, 0, len(m.scrapers))
+	infos := make([]Info, 0, len(m.scrapers))
 	for code, ms := range m.scrapers {
-		infos = append(infos, SessionInfo{
+		infos = append(infos, Info{
 			BankCode:  code,
 			Active:    time.Now().Before(ms.session.ExpiresAt),
 			ExpiresAt: ms.session.ExpiresAt,

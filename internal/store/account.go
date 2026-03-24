@@ -73,6 +73,7 @@ func scanAccountInto(row pgx.Row, a *Account) error {
 	)
 }
 
+// Create inserts a new account.
 func (r *AccountRepo) Create(ctx context.Context, a *Account) error {
 	query := `
 		INSERT INTO accounts (bank_code, account_number, currency, account_type, credential_id)
@@ -88,6 +89,7 @@ func (r *AccountRepo) Create(ctx context.Context, a *Account) error {
 	return nil
 }
 
+// GetByID returns a single account by ID, or ErrNotFound.
 func (r *AccountRepo) GetByID(ctx context.Context, id uuid.UUID) (*Account, error) {
 	query := `SELECT ` + accountColumns + ` FROM accounts WHERE id = $1`
 
@@ -102,22 +104,20 @@ func (r *AccountRepo) GetByID(ctx context.Context, id uuid.UUID) (*Account, erro
 	return &a, nil
 }
 
+// List returns accounts matching the optional filter criteria.
 func (r *AccountRepo) List(ctx context.Context, filter AccountFilter) ([]Account, error) {
 	var (
 		conditions []string
 		args       []any
-		argIdx     = 1
 	)
 
 	if filter.BankCode != nil {
-		conditions = append(conditions, fmt.Sprintf("bank_code = $%d", argIdx))
 		args = append(args, *filter.BankCode)
-		argIdx++
+		conditions = append(conditions, fmt.Sprintf("bank_code = $%d", len(args)))
 	}
 	if filter.Currency != nil {
-		conditions = append(conditions, fmt.Sprintf("currency = $%d", argIdx))
 		args = append(args, *filter.Currency)
-		argIdx++
+		conditions = append(conditions, fmt.Sprintf("currency = $%d", len(args)))
 	}
 
 	query := `SELECT ` + accountColumns + ` FROM accounts`
@@ -146,6 +146,7 @@ func (r *AccountRepo) List(ctx context.Context, filter AccountFilter) ([]Account
 	return accounts, nil
 }
 
+// UpsertBatch inserts or updates accounts in a single transaction.
 func (r *AccountRepo) UpsertBatch(ctx context.Context, credentialID uuid.UUID, accounts []Account) error {
 	if len(accounts) == 0 {
 		return nil
@@ -155,7 +156,7 @@ func (r *AccountRepo) UpsertBatch(ctx context.Context, credentialID uuid.UUID, a
 	if err != nil {
 		return fmt.Errorf("begin upsert batch: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	query := `
 		INSERT INTO accounts (bank_code, account_number, currency, account_type, credential_id)
@@ -181,6 +182,7 @@ func (r *AccountRepo) UpsertBatch(ctx context.Context, credentialID uuid.UUID, a
 	return nil
 }
 
+// UpdateLastSynced sets the last_synced_at timestamp to now.
 func (r *AccountRepo) UpdateLastSynced(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE accounts SET last_synced_at = now(), updated_at = now() WHERE id = $1`
 

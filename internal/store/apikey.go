@@ -51,6 +51,7 @@ func scanAPIKey(row pgx.Row) (*APIKey, error) {
 	return k, err
 }
 
+// Create inserts a new API key.
 func (r *APIKeyRepo) Create(ctx context.Context, k *APIKey) error {
 	query := `
 		INSERT INTO api_keys (key_hash, client_id, description)
@@ -66,6 +67,7 @@ func (r *APIKeyRepo) Create(ctx context.Context, k *APIKey) error {
 	return nil
 }
 
+// GetByKeyHash looks up an API key by its SHA-256 hash.
 func (r *APIKeyRepo) GetByKeyHash(ctx context.Context, keyHash []byte) (*APIKey, error) {
 	query := `SELECT ` + apiKeyColumns + ` FROM api_keys WHERE key_hash = $1`
 
@@ -79,6 +81,7 @@ func (r *APIKeyRepo) GetByKeyHash(ctx context.Context, keyHash []byte) (*APIKey,
 	return k, nil
 }
 
+// Revoke sets revoked_at on an active API key.
 func (r *APIKeyRepo) Revoke(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`
 
@@ -92,6 +95,7 @@ func (r *APIKeyRepo) Revoke(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// UpdateLastUsed sets last_used_at to now.
 func (r *APIKeyRepo) UpdateLastUsed(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE api_keys SET last_used_at = now() WHERE id = $1`
 
@@ -102,6 +106,7 @@ func (r *APIKeyRepo) UpdateLastUsed(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// List returns all API keys ordered by creation date.
 func (r *APIKeyRepo) List(ctx context.Context) ([]APIKey, error) {
 	query := `SELECT ` + apiKeyColumns + ` FROM api_keys ORDER BY created_at DESC`
 

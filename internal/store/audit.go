@@ -51,6 +51,7 @@ func NewAuditLogRepo(pool *pgxpool.Pool) *AuditLogRepo {
 	return &AuditLogRepo{pool: pool}
 }
 
+// Create inserts a new audit log entry and populates its generated fields.
 func (r *AuditLogRepo) Create(ctx context.Context, l *AuditLog) error {
 	query := `
 		INSERT INTO audit_logs (user_id, action, target_type, target_id, ip_address, user_agent, details, success)
@@ -67,6 +68,7 @@ func (r *AuditLogRepo) Create(ctx context.Context, l *AuditLog) error {
 	return nil
 }
 
+// List returns audit log entries matching the given filter, along with the total count.
 func (r *AuditLogRepo) List(ctx context.Context, filter AuditFilter) ([]AuditLog, int64, error) {
 	// Build dynamic WHERE clause
 	var conditions []string

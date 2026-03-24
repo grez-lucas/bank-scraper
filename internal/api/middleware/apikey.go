@@ -50,7 +50,7 @@ func APIKeyAuth(repo store.APIKeyRepository) gin.HandlerFunc {
 			return
 		}
 
-		go repo.UpdateLastUsed(context.Background(), apiKey.ID)
+		go func() { _ = repo.UpdateLastUsed(context.Background(), apiKey.ID) }()
 
 		c.Set(contextKeyClient, apiKey.ClientID)
 		c.Next()

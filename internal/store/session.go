@@ -42,6 +42,7 @@ func NewSessionRepo(pool *pgxpool.Pool) *SessionRepo {
 	return &SessionRepo{pool: pool}
 }
 
+// Create inserts a new session and populates its generated fields.
 func (r *SessionRepo) Create(ctx context.Context, s *Session) error {
 	query := `
 		INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, expires_at)
@@ -57,6 +58,7 @@ func (r *SessionRepo) Create(ctx context.Context, s *Session) error {
 	return nil
 }
 
+// GetByTokenHash retrieves a session by its token hash.
 func (r *SessionRepo) GetByTokenHash(ctx context.Context, hash string) (*Session, error) {
 	query := `
 		SELECT id, user_id, token_hash, host(ip_address), user_agent, expires_at, last_active, created_at
@@ -76,6 +78,7 @@ func (r *SessionRepo) GetByTokenHash(ctx context.Context, hash string) (*Session
 	return s, nil
 }
 
+// TouchLastActive updates the last_active timestamp for a session.
 func (r *SessionRepo) TouchLastActive(ctx context.Context, id uuid.UUID, now time.Time) error {
 	query := `UPDATE sessions SET last_active = $2 WHERE id = $1`
 
@@ -89,6 +92,7 @@ func (r *SessionRepo) TouchLastActive(ctx context.Context, id uuid.UUID, now tim
 	return nil
 }
 
+// Delete removes a session by its ID.
 func (r *SessionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM sessions WHERE id = $1`
 
@@ -102,6 +106,7 @@ func (r *SessionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// DeleteExpired removes all sessions past their expiration time.
 func (r *SessionRepo) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM sessions WHERE expires_at < now()`
 

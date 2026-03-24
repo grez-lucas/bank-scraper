@@ -61,12 +61,12 @@
 - [x] `internal/api/router.go` — Gin router with API key middleware, all 5 routes
 - [x] All 23 handler tests + 2 helper tests pass
 
-## M7 — Retry + Circuit Breaker
+## M7 — Retry + Circuit Breaker ✅
 
-- [ ] `internal/api/resilience/retry.go` — Exponential backoff (3 attempts, 1s→30s) with error classification
-- [ ] `internal/api/resilience/circuitbreaker.go` — Per-bank circuit breaker (5 failures → open, 5min reset)
-- [ ] Integrate into balance and transaction handlers
-- [ ] Unit tests with error injection
+- [x] `internal/api/resilience/retry.go` — Generic `Retry[T]` with exponential backoff (3 attempts, 1s→30s) + `IsRetryable` error classification
+- [x] `internal/api/resilience/circuitbreaker.go` — `BreakerRegistry` (per-bank gobreaker, 5 failures → open, 5min reset) + `ResilientProvider` wrapper
+- [x] Integration: `ResilientProvider` wraps `ScraperProvider` transparently — handlers get resilience without code changes
+- [x] Unit tests: error classification (9 cases), retry (5 tests), circuit breaker (2 tests), provider (2 tests) — 9 total, all pass
 
 ## M8 — API Entrypoint + Integration
 

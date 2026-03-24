@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	auditPageSize  = 50
+	auditPageSize = 50
+	// AuditLogsViewed is the audit action recorded when an admin views the audit log page.
 	AuditLogsViewed = "audit_logs_viewed"
 )
 
