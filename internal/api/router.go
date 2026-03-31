@@ -32,13 +32,17 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 	discoveryH := handler.NewDiscoveryHandler(deps.Discovery, deps.Creds, deps.CredRepo)
 
 	v1 := r.Group("/api/v1")
-	v1.Use(middleware.APIKeyAuth(deps.APIKeyRepo))
+
+	// Health check is outside auth — must respond even when DB is down.
+	v1.GET("/health", healthH.Check)
+
+	v1auth := v1.Group("")
+	v1auth.Use(middleware.APIKeyAuth(deps.APIKeyRepo))
 	{
-		v1.GET("/accounts", accountH.List)
-		v1.GET("/accounts/:account_id/balance", balanceH.Get)
-		v1.GET("/accounts/:account_id/transactions", txH.List)
-		v1.GET("/health", healthH.Check)
-		v1.POST("/admin/discover/:bank_code", discoveryH.Trigger)
+		v1auth.GET("/accounts", accountH.List)
+		v1auth.GET("/accounts/:account_id/balance", balanceH.Get)
+		v1auth.GET("/accounts/:account_id/transactions", txH.List)
+		v1auth.POST("/admin/discover/:bank_code", discoveryH.Trigger)
 	}
 
 	return r
