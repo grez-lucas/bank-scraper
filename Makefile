@@ -1,3 +1,19 @@
+# ============================== #
+# QUICKSTART
+# ============================== #
+#
+#   1. make setup                              # copy .env, start DB, run migrations
+#   2. make seed-admin ARGS="--username=admin"  # create admin user, save TOTP secret
+#   3. make api-create-key ARGS="--client-id=aynifx"  # create API key, save the key
+#   4. make credmgr-serve                      # start Credential Manager on :8081
+#   5. make api-serve                          # start API Gateway on :8080
+#
+# Then add BBVA credentials via the Credential Manager UI and run:
+#   make test-e2e                              # automated API tests via Bruno
+#
+# Run `make help` to list all available targets.
+#
+
 # COLORS
 ccgreen=$(shell printf "\033[32m")
 ccred=$(shell printf "\033[0;31m")
@@ -157,10 +173,10 @@ db-version:
 # CREDENTIAL MANAGER
 # ============================== #
 
-## seed-admin: create an admin user (interactive)
+## seed-admin: create an admin user (requires --username via ARGS)
 .PHONY: seed-admin
 seed-admin:
-	go run ./cmd/credmgr seed-admin
+	go run ./cmd/credmgr seed-admin $(ARGS)
 
 ## credmgr-serve: start the credential manager web UI
 .PHONY: credmgr-serve
@@ -181,6 +197,12 @@ docker-build:
 api-serve:
 	@set -a && . ./.env && set +a && \
 	go run ./cmd/api serve
+
+## api-migrate: run migrations via the API binary
+.PHONY: api-migrate
+api-migrate:
+	@set -a && . ./.env && set +a && \
+	go run ./cmd/api migrate
 
 ## api-create-key: create an API key (requires --client-id)
 .PHONY: api-create-key
