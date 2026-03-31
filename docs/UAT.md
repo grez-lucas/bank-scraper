@@ -28,12 +28,12 @@ Before starting UAT, ensure:
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 1.1 | Balance in native currency | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/<pen_account_id>/balance` | Response contains `currency: "PEN"`, `available_balance` as decimal string (e.g., `"1234.56"`) | |
-| 1.2 | Balance includes timestamp | Same as 1.1 | Response contains `fetched_at` in ISO 8601 format | |
-| 1.3 | Response time < 30s | Time the request: `time curl ...` | Total time under 30 seconds (first request may be slower due to login) | |
-| 1.4 | Invalid account ID | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/not-a-uuid/balance` | HTTP 400 with `{"status":"error","message":"invalid account_id"}` | |
-| 1.5 | Unknown account ID | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/00000000-0000-0000-0000-000000000000/balance` | HTTP 404 with `{"status":"error","message":"account not found"}` | |
-| 1.6 | USD account balance | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/<usd_account_id>/balance` | Response contains `currency: "USD"` | |
+| 1.1 | Balance in native currency | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/<pen_account_id>/balance` | Response contains `currency: "PEN"`, `available_balance` as decimal string (e.g., `"1234.56"`) | :+1: |
+| 1.2 | Balance includes timestamp | Same as 1.1 | Response contains `fetched_at` in ISO 8601 format | :+1: |
+| 1.3 | Response time < 30s | Time the request: `time curl ...` | Total time under 30 seconds (first request may be slower due to login) | :+1: |
+| 1.4 | Invalid account ID | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/not-a-uuid/balance` | HTTP 400 with `{"status":"error","message":"invalid account_id"}` | :+1: |
+| 1.5 | Unknown account ID | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/00000000-0000-0000-0000-000000000000/balance` | HTTP 404 with `{"status":"error","message":"account not found"}` | :+1: |
+| 1.6 | USD account balance | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/<usd_account_id>/balance` | Response contains `currency: "USD"` | :+1: |
 
 ### UAT-002: Query Transaction History (US-002)
 
@@ -41,13 +41,13 @@ Before starting UAT, ensure:
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 2.1 | Default 7-day range | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/<id>/transactions` | `from_date` and `to_date` span approximately 7 days | |
-| 2.2 | Reverse chronological order | Same as 2.1 | If multiple transactions returned, dates are newest → oldest | |
-| 2.3 | Custom date range | `curl ... /transactions?from_date=2026-03-01&to_date=2026-03-20` | `from_date`=`2026-03-01`, `to_date`=`2026-03-20` in response | |
-| 2.4 | Transaction fields | Same as 2.1 | Each transaction has: `id`, `date`, `description`, `amount`, `type` (CREDIT/DEBIT) | |
-| 2.5 | Balance after (optional) | Same as 2.1 | Some transactions include `balance_after` as decimal string | |
-| 2.6 | Date range > 90 days rejected | `curl ... /transactions?from_date=2025-01-01&to_date=2026-03-24` | HTTP 400 with message about "90 days" | |
-| 2.7 | Pagination | `curl ... /transactions?page=1&page_size=5` | `pagination.page_size`=5, at most 5 transactions returned, `has_more` reflects whether more exist | |
+| 2.1 | Default 7-day range | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts/<id>/transactions` | `from_date` and `to_date` span approximately 7 days | :+1: |
+| 2.2 | Reverse chronological order | Same as 2.1 | If multiple transactions returned, dates are newest → oldest | :+1: |
+| 2.3 | Custom date range | `curl ... /transactions?from_date=2026-03-01&to_date=2026-03-20` | `from_date`=`2026-03-01`, `to_date`=`2026-03-20` in response | :+1: |
+| 2.4 | Transaction fields | Same as 2.1 | Each transaction has: `id`, `date`, `description`, `amount`, `type` (CREDIT/DEBIT) | :+1: |
+| 2.5 | Balance after (optional) | Same as 2.1 | Some transactions include `balance_after` as decimal string | :+1: |
+| 2.6 | Date range > 90 days rejected | `curl ... /transactions?from_date=2025-01-01&to_date=2026-03-24` | HTTP 400 with message about "90 days" | :+1: |
+| 2.7 | Pagination | `curl ... /transactions?page=1&page_size=5` | `pagination.page_size`=5, at most 5 transactions returned, `has_more` reflects whether more exist | :+1: |
 
 ### UAT-003: List Available Accounts (US-003)
 
@@ -55,11 +55,11 @@ Before starting UAT, ensure:
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 3.1 | List all accounts | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts` | Array of accounts with `account_id`, `bank_code`, `currency` | |
-| 3.2 | No sensitive data exposed | Same as 3.1 | Account numbers are masked (e.g., `XXXXXXXXXXXXXXXX4607`). No passwords, credentials, or encryption keys in response | |
-| 3.3 | Filter by bank | `curl ... /accounts?bank_code=BBVA` | All returned accounts have `bank_code: "BBVA"` | |
-| 3.4 | Filter by currency | `curl ... /accounts?currency=PEN` | All returned accounts have `currency: "PEN"` | |
-| 3.5 | Account fields complete | Same as 3.1 | Each account has: `account_id`, `bank_code`, `currency`, `account_type`, `status` | |
+| 3.1 | List all accounts | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/accounts` | Array of accounts with `account_id`, `bank_code`, `currency` | :+1: |
+| 3.2 | No sensitive data exposed | Same as 3.1 | Account numbers are masked (e.g., `XXXXXXXXXXXXXXXX4607`). No passwords, credentials, or encryption keys in response | :+1: |
+| 3.3 | Filter by bank | `curl ... /accounts?bank_code=BBVA` | All returned accounts have `bank_code: "BBVA"` | :+1: |
+| 3.4 | Filter by currency | `curl ... /accounts?currency=PEN` | All returned accounts have `currency: "PEN"` | :+1: |
+| 3.5 | Account fields complete | Same as 3.1 | Each account has: `account_id`, `bank_code`, `currency`, `account_type`, `status` | :+1: |
 
 ### UAT-004: Health Check (US-004)
 
@@ -67,10 +67,10 @@ Before starting UAT, ensure:
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 4.1 | System healthy | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/health` | `status: "healthy"`, `timestamp` in ISO 8601 | |
-| 4.2 | Per-bank status | Same as 4.1, after a successful balance query | `banks.BBVA.status: "healthy"`, `banks.BBVA.last_successful_connection` is a timestamp | |
-| 4.3 | No scraping triggered | Monitor server logs during health check | No scraper login or page navigation logged | |
-| 4.4 | Degraded status | Stop the database, then call health | `status: "degraded"` | |
+| 4.1 | System healthy | `curl -H "X-API-Key: <key>" localhost:8080/api/v1/health` | `status: "healthy"`, `timestamp` in ISO 8601 | :+1: |
+| 4.2 | Per-bank status | Same as 4.1, after a successful balance query | `banks.BBVA.status: "healthy"`, `banks.BBVA.last_successful_connection` is a timestamp | :+1: |
+| 4.3 | No scraping triggered | Monitor server logs during health check | No scraper login or page navigation logged | :+1: |
+| 4.4 | Degraded status | Stop the database, then call health | `status: "degraded"` | :+1: |
 
 ---
 
@@ -82,48 +82,48 @@ Before starting UAT, ensure:
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 101.1 | 2FA required | Navigate to `localhost:8081/credentials` without logging in | Redirected to `/login` | |
-| 101.2 | TOTP authentication | Login with username/password, then enter TOTP code | Access granted to credentials page | |
-| 101.3 | Create credential | Click "Add Credential", fill bank code (BBVA), label, company code, user code, password. Submit | Success flash: "Credential created successfully", credential appears in list | |
-| 101.4 | Encrypted at rest | Query DB: `SELECT credentials_enc FROM bank_credentials` | Data is binary (encrypted), not readable as JSON | |
-| 101.5 | Action audited | Navigate to Audit Log page | Entry shows `credential_created` with user ID and timestamp | |
-| 101.6 | One credential per bank | Try creating a second BBVA credential | Error: "credential already exists for this bank" | |
+| 101.1 | 2FA required | Navigate to `localhost:8081/credentials` without logging in | Redirected to `/login` | :+1: |
+| 101.2 | TOTP authentication | Login with username/password, then enter TOTP code | Access granted to credentials page | :+1: |
+| 101.3 | Create credential | Click "Add Credential", fill bank code (BBVA), label, company code, user code, password. Submit | Success flash: "Credential created successfully", credential appears in list | :+1: |
+| 101.4 | Encrypted at rest | Query DB: `SELECT credentials_enc FROM bank_credentials` | Data is binary (encrypted), not readable as JSON | :+1: |
+| 101.5 | Action audited | Navigate to Audit Log page | Entry shows `credential_created` with user ID and timestamp | :+1: |
+| 101.6 | One credential per bank | Try creating a second BBVA credential | Error: "credential already exists for this bank" | :+1: |
 
 ### UAT-102: View Configured Accounts (US-102)
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 102.1 | List shows credentials | Navigate to `/credentials` | Table with bank code, label, version, last updated | |
-| 102.2 | No passwords shown | Inspect page source and network tab | No password, company_code, user_code, or encryption keys in HTML | |
-| 102.3 | Access logged | Check audit log after viewing | Entry for `credentials_listed` | |
+| 102.1 | List shows credentials | Navigate to `/credentials` | Table with bank code, label, version, last updated | :+1: |
+| 102.2 | No passwords shown | Inspect page source and network tab | No password, company_code, user_code, or encryption keys in HTML | :+1: |
+| 102.3 | Access logged | Check audit log after viewing | Entry for `credentials_listed` | :+1: |
 
 ### UAT-103: Update Bank Credentials (US-103)
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 103.1 | Edit form | Click "Edit" on a credential | Form shows bank code and label (pre-filled), password fields are empty | |
-| 103.2 | Old credentials not shown | Same as 103.1 | No pre-filled password, company code, or user code values | |
-| 103.3 | Version bumped | Submit update with new values | Version incremented (e.g., v1 → v2) | |
-| 103.4 | Change audited | Check audit log | Entry for `credential_updated` with credential ID | |
-| 103.5 | Test before save | Click "Test" on a credential | Flash message: "Credential test passed!" (or failure message if invalid) | |
+| 103.1 | Edit form | Click "Edit" on a credential | Form shows bank code and label (pre-filled), password fields are empty | :+1: |
+| 103.2 | Old credentials not shown | Same as 103.1 | No pre-filled password, company code, or user code values | :+1: |
+| 103.3 | Version bumped | Submit update with new values | Version incremented (e.g., v1 → v2) | :+1: |
+| 103.4 | Change audited | Check audit log | Entry for `credential_updated` with credential ID | :+1: |
+| 103.5 | Test before save | Click "Test" on a credential | Flash message: "Credential test passed!" (or failure message if invalid) | :+1: |
 
 ### UAT-104: Delete Bank Credentials (US-104)
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 104.1 | Confirmation required | Click "Delete" on a credential | Browser confirmation dialog appears | |
-| 104.2 | Soft delete | Confirm deletion | Credential disappears from list. DB record has `status='deleted'` and `deleted_at` set | |
-| 104.3 | Deletion audited | Check audit log | Entry for `credential_deleted` | |
+| 104.1 | Confirmation required | Click "Delete" on a credential | Browser confirmation dialog appears | :+1: |
+| 104.2 | Soft delete | Confirm deletion | Credential disappears from list. DB record has `status='deleted'` and `deleted_at` set | :+1: |
+| 104.3 | Deletion audited | Check audit log | Entry for `credential_deleted` | :+1: |
 
 ### UAT-105: View Audit Logs (US-105)
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| 105.1 | Comprehensive log | Navigate to `/audit` | Shows all credential operations, login attempts, and system events | |
-| 105.2 | Filterable | Use date/action filters on audit page | Results filtered accordingly | |
-| 105.3 | Export to CSV | Click export as CSV | CSV file downloads with all audit entries | |
-| 105.4 | Export to JSON | Click export as JSON | JSON file downloads with all audit entries | |
-| 105.5 | No sensitive data in logs | Inspect exported data | No passwords, encryption keys, or credential values in any log entry | |
+| 105.1 | Comprehensive log | Navigate to `/audit` | Shows all credential operations, login attempts, and system events | :+1: |
+| 105.2 | Filterable | Use date/action filters on audit page | Results filtered accordingly | :+1: |
+| 105.3 | Export to CSV | Click export as CSV | CSV file downloads with all audit entries | :+1: |
+| 105.4 | Export to JSON | Click export as JSON | JSON file downloads with all audit entries | :+1: |
+| 105.5 | No sensitive data in logs | Inspect exported data | No passwords, encryption keys, or credential values in any log entry | :+1: |
 
 ---
 
@@ -131,11 +131,11 @@ Before starting UAT, ensure:
 
 | # | Scenario | Steps | Expected Result | Pass? |
 |---|----------|-------|-----------------|-------|
-| D.1 | Discover via CredMgr UI | Navigate to credential → Accounts → click "Discover Accounts" | Success flash: "Discovered N account(s) for BBVA", accounts table populated | |
+| D.1 | Discover via CredMgr UI | Navigate to credential → Accounts → click "Discover Accounts" | Success flash: "Discovered N account(s) for BBVA", accounts table populated | :+1: |
 | D.2 | Discover via API | `curl -X POST -H "X-API-Key: <key>" localhost:8080/api/v1/admin/discover/BBVA` | HTTP 200 with `accounts` array containing BBVA accounts | |
-| D.3 | Discover via CLI | `go run ./cmd/api discover --bank=BBVA` | Output: "Discovered N account(s)" with masked account numbers | |
-| D.4 | No credential configured | `curl -X POST -H "X-API-Key: <key>" localhost:8080/api/v1/admin/discover/UNKNOWN` | HTTP 404 with error message about missing credential | |
-| D.5 | Discovery error feedback | Temporarily misconfigure BBVA credential, then trigger discover | Error flash/response indicating login failure | |
+| D.3 | Discover via CLI | `go run ./cmd/api discover --bank=BBVA` | Output: "Discovered N account(s)" with masked account numbers | :+1: |
+| D.4 | No credential configured | `curl -X POST -H "X-API-Key: <key>" localhost:8080/api/v1/admin/discover/UNKNOWN` | HTTP 404 with error message about missing credential | :+1: |
+| D.5 | Discovery error feedback | Temporarily misconfigure BBVA credential, then trigger discover | Error flash/response indicating login failure | :+1: |
 
 ---
 
@@ -168,15 +168,15 @@ This flow validates the full system from credential setup through balance query.
 
 | # | Check | Steps | Expected Result | Pass? |
 |---|-------|-------|-----------------|-------|
-| S.1 | API key required | `curl localhost:8080/api/v1/accounts` (no header) | HTTP 401: `"missing API key"` | |
-| S.2 | Invalid API key rejected | `curl -H "X-API-Key: fake-key" localhost:8080/api/v1/accounts` | HTTP 401: `"invalid API key"` | |
-| S.3 | Revoked key rejected | Revoke a key in DB (`UPDATE api_keys SET revoked_at=now()`) then use it | HTTP 401: `"API key revoked"` | |
-| S.4 | Credentials encrypted at rest | `SELECT credentials_enc FROM bank_credentials` | Binary data, not readable JSON | |
-| S.5 | No credentials in API responses | Query any API endpoint | No `password`, `company_code`, `user_code`, or `encryption_key` in any response | |
-| S.6 | Account numbers masked | `GET /api/v1/accounts` | Account numbers show as `XXXXXXXXXXXXXXXX4607` | |
-| S.7 | Session timeout (CredMgr) | Login to CredMgr, wait 15+ minutes, try an action | Redirected to login page | |
-| S.8 | Login lockout | Enter wrong password 5 times in CredMgr | Account locked, further attempts rejected | |
-| S.9 | Error responses don't leak internals | Trigger a 500 error (e.g., stop DB mid-request) | Error message is generic ("internal error"), no stack traces or SQL | |
+| S.1 | API key required | `curl localhost:8080/api/v1/accounts` (no header) | HTTP 401: `"missing API key"` | :+1: |
+| S.2 | Invalid API key rejected | `curl -H "X-API-Key: fake-key" localhost:8080/api/v1/accounts` | HTTP 401: `"invalid API key"` | :+1: |
+| S.3 | Revoked key rejected | Revoke a key in DB (`UPDATE api_keys SET revoked_at=now()`) then use it | HTTP 401: `"API key revoked"` | :+1: |
+| S.4 | Credentials encrypted at rest | `SELECT credentials_enc FROM bank_credentials` | Binary data, not readable JSON | :+1: |
+| S.5 | No credentials in API responses | Query any API endpoint | No `password`, `company_code`, `user_code`, or `encryption_key` in any response | :+1: |
+| S.6 | Account numbers masked | `GET /api/v1/accounts` | Account numbers show as `XXXXXXXXXXXXXXXX4607` | :+1: |
+| S.7 | Session timeout (CredMgr) | Login to CredMgr, wait 15+ minutes, try an action | Redirected to login page | :+1: |
+| S.8 | Login lockout | Enter wrong password 5 times in CredMgr | Account locked, further attempts rejected | :+1: |
+| S.9 | Error responses don't leak internals | Trigger a 500 error (e.g., stop DB mid-request) | Error message is generic ("internal error"), no stack traces or SQL | :+1: |
 
 ---
 
