@@ -216,6 +216,12 @@ func newTestAuthService(userRepo store.UserRepository, sessionRepo store.Session
 	return NewAuthService(userRepo, sessionRepo, aw, mk, 15*time.Minute, slog.Default())
 }
 
+func newTestAuthServiceWithAudit(userRepo store.UserRepository, sessionRepo store.SessionRepository, mk crypto.MasterKey) (*AuthService, *fakeAuditRepo) {
+	ar := newFakeAuditRepo()
+	aw := NewAuditWriter(ar, slog.Default())
+	return NewAuthService(userRepo, sessionRepo, aw, mk, 15*time.Minute, slog.Default()), ar
+}
+
 // --- tests ---
 
 func TestLogin_CorrectPassword(t *testing.T) {
@@ -276,12 +282,22 @@ func TestLogin_UserNotFound(t *testing.T) {
 	userRepo := newFakeUserRepo()
 	sessionRepo := newFakeSessionRepo()
 	mk := testMasterKey(t)
-	svc := newTestAuthService(userRepo, sessionRepo, mk)
+	svc, auditRepo := newTestAuthServiceWithAudit(userRepo, sessionRepo, mk)
 
 	ctx := context.Background()
 	_, _, err := svc.Login(ctx, "nonexistent", "password", "10.0.0.1", "TestAgent")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidCredentials))
+
+	// Verify audit log entry for unknown user
+	last := auditRepo.lastLog()
+	require.NotNil(t, last)
+	assert.Equal(t, AuditLoginFailed, last.Action)
+	assert.Nil(t, last.UserID)
+	assert.Equal(t, "nonexistent", last.TargetID)
+	assert.Equal(t, "10.0.0.1", last.IPAddress)
+	assert.False(t, last.Success)
+	assert.Equal(t, "unknown_user", last.Details["reason"])
 }
 
 func TestVerifyTOTP_ValidCode(t *testing.T) {

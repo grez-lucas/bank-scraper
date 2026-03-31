@@ -90,7 +90,11 @@ func (s *AuthService) Login(ctx context.Context, username, password, ip, ua stri
 	user, err := s.users.GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			// Don't reveal whether user exists
+			s.logger.Warn("login failed: unknown user",
+				slog.String("username", username),
+				slog.String("ip", ip))
+			s.aw.Log(ctx, nil, AuditLoginFailed, "user", username, ip, ua, false,
+				map[string]any{"reason": "unknown_user"})
 			return false, "", fmt.Errorf("login: %w", ErrInvalidCredentials)
 		}
 		return false, "", fmt.Errorf("login: %w", err)

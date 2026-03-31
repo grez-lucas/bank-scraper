@@ -235,6 +235,34 @@ func TestAuditLogRepo_DetailsJSONB(t *testing.T) {
 	assert.Equal(t, float64(3), logs[0].Details["attempts"])
 }
 
+func TestAuditLogRepo_LoginFailedUnknownUser(t *testing.T) {
+	pool := testPool(t)
+	truncateTables(t, pool)
+	auditRepo := NewAuditLogRepo(pool)
+
+	ctx := context.Background()
+	l := &AuditLog{
+		UserID:     nil,
+		Action:     "login_failed",
+		TargetType: "user",
+		TargetID:   "nonexistent",
+		IPAddress:  "10.0.0.1",
+		UserAgent:  "TestAgent/1.0",
+		Details:    map[string]any{"reason": "unknown_user"},
+		Success:    false,
+	}
+	require.NoError(t, auditRepo.Create(ctx, l))
+
+	logs, total, err := auditRepo.List(ctx, AuditFilter{Action: "login_failed"})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, logs, 1)
+	assert.Nil(t, logs[0].UserID)
+	assert.Equal(t, "nonexistent", logs[0].TargetID)
+	assert.Equal(t, "unknown_user", logs[0].Details["reason"])
+	assert.False(t, logs[0].Success)
+}
+
 func TestAuditLogRepo_IPAddress(t *testing.T) {
 	pool := testPool(t)
 	truncateTables(t, pool)
