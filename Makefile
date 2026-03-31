@@ -83,9 +83,16 @@ test-integration:
 ## test-e2e: run Bruno E2E flow against live API (requires running API + TEST_API_KEY)
 .PHONY: test-e2e
 test-e2e:
+	@set -a && . ./.env && set +a && \
+	if [ -z "$$TEST_API_KEY" ]; then \
+		printf "$(ccred)ERROR: TEST_API_KEY is not set in .env$(ccend)\n"; \
+		printf "Create one with: make api-create-key ARGS=\"--client-id=e2e-test\"\n"; \
+		printf "Then add TEST_API_KEY=<key> to your .env file\n"; \
+		exit 1; \
+	fi
 	@printf "$(ccyellow)Running E2E tests via Bruno...$(ccend)\n"
 	@set -a && . ./.env && set +a && \
-	bru run bruno/e2e/ --env local
+	cd bruno && bru run e2e/ --env local
 	@printf "$(ccgreen)E2E tests done!$(ccend)\n"
 
 ## test-live: run against live banks (dangerous!!)
@@ -173,9 +180,14 @@ db-version:
 # CREDENTIAL MANAGER
 # ============================== #
 
-## seed-admin: create an admin user (requires --username via ARGS)
+## seed-admin: create an admin user (requires ARGS="--username=<name>")
 .PHONY: seed-admin
 seed-admin:
+ifndef ARGS
+	@printf "$(ccred)ERROR: ARGS is required$(ccend)\n"
+	@printf "Usage: make seed-admin ARGS=\"--username=admin\"\n"
+	@exit 1
+endif
 	go run ./cmd/credmgr seed-admin $(ARGS)
 
 ## credmgr-serve: start the credential manager web UI
@@ -204,15 +216,25 @@ api-migrate:
 	@set -a && . ./.env && set +a && \
 	go run ./cmd/api migrate
 
-## api-create-key: create an API key (requires --client-id)
+## api-create-key: create an API key (requires ARGS="--client-id=<id>")
 .PHONY: api-create-key
 api-create-key:
+ifndef ARGS
+	@printf "$(ccred)ERROR: ARGS is required$(ccend)\n"
+	@printf "Usage: make api-create-key ARGS=\"--client-id=aynifx [--description=Production]\"\n"
+	@exit 1
+endif
 	@set -a && . ./.env && set +a && \
 	go run ./cmd/api create-key $(ARGS)
 
-## api-discover: trigger account discovery (requires --bank)
+## api-discover: trigger account discovery (requires ARGS="--bank=<code>")
 .PHONY: api-discover
 api-discover:
+ifndef ARGS
+	@printf "$(ccred)ERROR: ARGS is required$(ccend)\n"
+	@printf "Usage: make api-discover ARGS=\"--bank=BBVA\"\n"
+	@exit 1
+endif
 	@set -a && . ./.env && set +a && \
 	go run ./cmd/api discover $(ARGS)
 
