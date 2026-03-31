@@ -51,7 +51,7 @@ func TestTransactionHandler_List_Success(t *testing.T) {
 	sp := &mockScraperProvider{scraper: ms}
 
 	router := setupTransactionRouter(repo, sp)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/"+acct.ID.String()+"/transactions", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/"+acct.ID.String()+"/transactions?from_date=2026-03-15&to_date=2026-03-25", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
