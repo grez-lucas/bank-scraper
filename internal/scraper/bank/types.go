@@ -5,7 +5,7 @@ import "time"
 // Session represents an authenticated bank session.
 type Session struct {
 	ID        string
-	Code  Code
+	Code      Code
 	ExpiresAt time.Time
 }
 

@@ -23,7 +23,7 @@ const (
 	CurrencyCodeUSD = "USD"
 
 	// LabelSoles is the BBVA label for PEN accounts.
-	LabelSoles = "SOLES"
+	LabelSoles   = "SOLES"
 	LabelDollars = "DOLARES"
 
 	// -- TRANSACTIONS --

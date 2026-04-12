@@ -10,9 +10,9 @@ import (
 // page diagnostic. Caller provides these to avoid import cycles with
 // the bbva package.
 type AccountDiagSelectors struct {
-	AccountRow         string
-	AccountCard        string
-	AnnouncementModal  string
+	AccountRow        string
+	AccountCard       string
+	AnnouncementModal string
 }
 
 // RunAccountsDiagnostic evaluates diagnostic JavaScript on the page that traces

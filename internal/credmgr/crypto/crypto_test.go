@@ -123,7 +123,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	plaintext := []byte("secret bank credentials JSON blob")
-	ciphertext, err := encrypt(dek,plaintext)
+	ciphertext, err := encrypt(dek, plaintext)
 	require.NoError(t, err)
 	assert.NotEmpty(t, ciphertext)
 	assert.False(t, bytes.Equal(plaintext, ciphertext))
@@ -137,7 +137,7 @@ func TestDecrypt_TamperedCiphertext(t *testing.T) {
 	dek, err := GenerateDEK()
 	require.NoError(t, err)
 
-	ciphertext, err := encrypt(dek,[]byte("hello"))
+	ciphertext, err := encrypt(dek, []byte("hello"))
 	require.NoError(t, err)
 
 	ciphertext[len(ciphertext)-1] ^= 0xff

@@ -281,9 +281,9 @@ func (r *Replayer) serveNotFound(ctx *rod.Hijack, reqURL string) {
 // Stats returns statistics about the replayer's index.
 func (r *Replayer) Stats() map[string]int {
 	return map[string]int{
-		"exact_matches":  len(r.exactMatches),
-		"path_matches":   len(r.pathMatches),
-		"method_exact":   len(r.methodExact),
-		"method_path":    len(r.methodPath),
+		"exact_matches": len(r.exactMatches),
+		"path_matches":  len(r.pathMatches),
+		"method_exact":  len(r.methodExact),
+		"method_path":   len(r.methodPath),
 	}
 }

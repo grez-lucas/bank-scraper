@@ -20,7 +20,7 @@ var (
 
 // ScraperError provides detailed error context
 type ScraperError struct {
-	Code  Code
+	Code      Code
 	Operation string
 	Cause     error
 	Details   string

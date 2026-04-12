@@ -73,6 +73,6 @@ const (
 	SelectorLoadMoreButton = `bbva-table-footer.footer-link-text`
 
 	// Logout
-	SelectorLogoutButton = `bbva-web-navigation-menu-item-action.exit`     // "Salir" sidebar button
+	SelectorLogoutButton = `bbva-web-navigation-menu-item-action.exit`              // "Salir" sidebar button
 	SelectorLogoutModal  = `bbva-web-template-modal#template-modal-logout[visible]` // Confirmation modal (visible state)
 )

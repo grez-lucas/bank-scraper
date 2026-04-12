@@ -46,13 +46,13 @@ const debugBaseDir = "bbva-debug"
 // Scraper implements browser automation for the BBVA Net Cash portal.
 type Scraper struct {
 	browser  *rod.Browser
-	page     *rod.Page            // Authenticated page, kept alive between operations
-	router   *rod.HijackRouter    // Request hijacker, kept alive with the page
+	page     *rod.Page         // Authenticated page, kept alive between operations
+	router   *rod.HijackRouter // Request hijacker, kept alive with the page
 	session  *bank.Session
-	debug    *debug.Collector     // Session-scoped artifact capture; nil before Login
+	debug    *debug.Collector // Session-scoped artifact capture; nil before Login
 	timeout  time.Duration
-	headless bool                 // Whether to launch browser in headless mode
-	hijacker func(*rod.Hijack)    // Optional hijacker for replay testing
+	headless bool              // Whether to launch browser in headless mode
+	hijacker func(*rod.Hijack) // Optional hijacker for replay testing
 	logger   *slog.Logger
 }
 

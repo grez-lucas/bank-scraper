@@ -15,7 +15,7 @@ import (
 
 // Credential service errors.
 var (
-	ErrDuplicateBank          = errors.New("credential already exists for this bank")
+	ErrDuplicateBank           = errors.New("credential already exists for this bank")
 	ErrCredentialNotConfigured = errors.New("no credential configured for this bank")
 )
 
@@ -264,4 +264,3 @@ func (s *CredentialService) decryptFields(encData, encDEK []byte) (map[string]st
 	}
 	return fields, nil
 }
-

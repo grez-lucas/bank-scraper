@@ -38,7 +38,7 @@ func (m *mockCredentialRepo) Create(_ context.Context, _ *store.BankCredential) 
 func (m *mockCredentialRepo) GetByID(_ context.Context, _ uuid.UUID) (*store.BankCredential, error) {
 	return nil, nil
 }
-func (m *mockCredentialRepo) List(_ context.Context) ([]store.BankCredential, error) { return nil, nil }
+func (m *mockCredentialRepo) List(_ context.Context) ([]store.BankCredential, error)  { return nil, nil }
 func (m *mockCredentialRepo) Update(_ context.Context, _ *store.BankCredential) error { return nil }
 func (m *mockCredentialRepo) SoftDelete(_ context.Context, _, _ uuid.UUID) error      { return nil }
 func (m *mockCredentialRepo) HardDeleteExpired(_ context.Context, _ int) (int64, error) {

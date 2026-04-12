@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	defaultDateRangeDays   = 7
-	maxDateRangeDays       = 90
-	defaultPageSize        = 50
-	scraperFetchCount      = 250 // Max transactions to fetch from the bank scraper
-	dateLayout             = "2006-01-02"
+	defaultDateRangeDays = 7
+	maxDateRangeDays     = 90
+	defaultPageSize      = 50
+	scraperFetchCount    = 250 // Max transactions to fetch from the bank scraper
+	dateLayout           = "2006-01-02"
 )
 
 // TransactionHandler handles transaction listing endpoints.

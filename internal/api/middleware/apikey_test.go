@@ -26,8 +26,8 @@ type mockAPIKeyRepo struct {
 }
 
 func (m *mockAPIKeyRepo) Create(_ context.Context, _ *store.APIKey) error { return nil }
-func (m *mockAPIKeyRepo) Revoke(_ context.Context, _ uuid.UUID) error    { return nil }
-func (m *mockAPIKeyRepo) List(_ context.Context) ([]store.APIKey, error) { return nil, nil }
+func (m *mockAPIKeyRepo) Revoke(_ context.Context, _ uuid.UUID) error     { return nil }
+func (m *mockAPIKeyRepo) List(_ context.Context) ([]store.APIKey, error)  { return nil, nil }
 
 func (m *mockAPIKeyRepo) GetByKeyHash(_ context.Context, _ []byte) (*store.APIKey, error) {
 	if m.err != nil {
