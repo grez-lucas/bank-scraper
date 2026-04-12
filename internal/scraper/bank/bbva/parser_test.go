@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank/testutil"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

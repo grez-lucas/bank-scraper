@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/grez-lucas/bank-scraper/internal/store"
+	"github.com/aynifx/bank-scraper/internal/store"
 )
 
 const (

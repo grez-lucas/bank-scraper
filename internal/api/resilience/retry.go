@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
 )
 
 // Config controls retry behavior.

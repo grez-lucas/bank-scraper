@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank/bbva"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank/bbva"
 )
 
 // ScraperCredentialTester implements CredentialTester by calling the actual bank scrapers.

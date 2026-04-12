@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/grez-lucas/bank-scraper/internal/scraper/testutil"
+	"github.com/aynifx/bank-scraper/internal/scraper/testutil"
 )
 
 func main() {

@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/middleware"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
-	"github.com/grez-lucas/bank-scraper/internal/store"
+	"github.com/aynifx/bank-scraper/internal/credmgr/middleware"
+	"github.com/aynifx/bank-scraper/internal/credmgr/service"
+	"github.com/aynifx/bank-scraper/internal/store"
 )
 
 // Discoverer triggers bank account discovery.

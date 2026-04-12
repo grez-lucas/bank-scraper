@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/middleware"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
+	"github.com/aynifx/bank-scraper/internal/credmgr/middleware"
+	"github.com/aynifx/bank-scraper/internal/credmgr/service"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/crypto"
-	"github.com/grez-lucas/bank-scraper/internal/store"
+	"github.com/aynifx/bank-scraper/internal/credmgr/crypto"
+	"github.com/aynifx/bank-scraper/internal/store"
 )
 
 // Credential service errors.

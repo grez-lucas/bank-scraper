@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
 )
 
 // CredentialProvider retrieves decrypted bank credentials.

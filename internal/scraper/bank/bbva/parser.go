@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
 )
 
 // Currency symbols and labels for BBVA account parsing.

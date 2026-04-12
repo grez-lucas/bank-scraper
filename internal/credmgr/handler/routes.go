@@ -7,12 +7,12 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	apihandler "github.com/grez-lucas/bank-scraper/internal/api/handler"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/middleware"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/service"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/static"
-	"github.com/grez-lucas/bank-scraper/internal/credmgr/templates"
-	"github.com/grez-lucas/bank-scraper/internal/store"
+	apihandler "github.com/aynifx/bank-scraper/internal/api/handler"
+	"github.com/aynifx/bank-scraper/internal/credmgr/middleware"
+	"github.com/aynifx/bank-scraper/internal/credmgr/service"
+	"github.com/aynifx/bank-scraper/internal/credmgr/static"
+	"github.com/aynifx/bank-scraper/internal/credmgr/templates"
+	"github.com/aynifx/bank-scraper/internal/store"
 )
 
 const (

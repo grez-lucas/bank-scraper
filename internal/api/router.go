@@ -3,9 +3,9 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/grez-lucas/bank-scraper/internal/api/handler"
-	"github.com/grez-lucas/bank-scraper/internal/api/middleware"
-	"github.com/grez-lucas/bank-scraper/internal/store"
+	"github.com/aynifx/bank-scraper/internal/api/handler"
+	"github.com/aynifx/bank-scraper/internal/api/middleware"
+	"github.com/aynifx/bank-scraper/internal/store"
 )
 
 // RouterDeps holds the dependencies needed to set up the API router.

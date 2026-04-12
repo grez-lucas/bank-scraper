@@ -11,9 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank/banktest"
-	"github.com/grez-lucas/bank-scraper/internal/store"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank/banktest"
+	"github.com/aynifx/bank-scraper/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

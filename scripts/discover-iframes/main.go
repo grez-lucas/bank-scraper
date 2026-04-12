@@ -22,7 +22,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/stealth"
-	browserutil "github.com/grez-lucas/bank-scraper/internal/scraper/browser"
+	browserutil "github.com/aynifx/bank-scraper/internal/scraper/browser"
 )
 
 // selectorProbe is a known CSS selector to search for in each frame.

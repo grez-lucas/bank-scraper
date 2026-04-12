@@ -4,7 +4,7 @@ package banktest
 import (
 	"context"
 
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
 )
 
 // MockScraper is a configurable test double for bank.Scraper.

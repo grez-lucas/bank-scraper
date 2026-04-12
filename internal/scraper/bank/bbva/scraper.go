@@ -18,9 +18,9 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/browser"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/debug"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/scraper/browser"
+	"github.com/aynifx/bank-scraper/internal/scraper/debug"
 )
 
 const (

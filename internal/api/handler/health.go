@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/grez-lucas/bank-scraper/internal/api/session"
-	"github.com/grez-lucas/bank-scraper/internal/scraper/bank"
+	"github.com/aynifx/bank-scraper/internal/api/session"
+	"github.com/aynifx/bank-scraper/internal/scraper/bank"
 )
 
 // DBPinger checks database connectivity.
