@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          args: --config .golangci-lint.yml ./...
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go test -v ./... -short
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: |
+          mkdir -p bin
+          go build -o bin/bank-scraper ./cmd/main.go
+          go build -o bin/credmgr ./cmd/credmgr
+          go build -o bin/api ./cmd/api
+
+  test-db:
+    name: Database Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: bank_scraper
+          POSTGRES_USER: scraper
+          POSTGRES_PASSWORD: scraper_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scraper -d bank_scraper"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://scraper:scraper_dev@localhost:5432/bank_scraper?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run migrations
+        run: go run ./cmd/credmgr migrate
+
+      - name: Run database tests
+        run: go test -v ./internal/store/... -count=1
