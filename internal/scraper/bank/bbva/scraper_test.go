@@ -333,6 +333,10 @@ func TestScraper_GetTransactions_Replay_Integration(t *testing.T) {
 }
 
 func TestScraper_Logout_NoSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires browser")
+	}
+
 	scraper, err := NewScraper(WithTimeout(5 * time.Second))
 	require.NoError(t, err)
 	defer func() { _ = scraper.Close() }()
@@ -348,6 +352,10 @@ func TestScraper_Logout_NoSession(t *testing.T) {
 }
 
 func TestScraper_GetBalance_NoSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires browser")
+	}
+
 	scraper, err := NewScraper(WithTimeout(5 * time.Second))
 	require.NoError(t, err)
 	defer func() { _ = scraper.Close() }()
@@ -362,6 +370,10 @@ func TestScraper_GetBalance_NoSession(t *testing.T) {
 }
 
 func TestScraper_GetTransactions_NoSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires browser")
+	}
+
 	scraper, err := NewScraper(WithTimeout(5 * time.Second))
 	require.NoError(t, err)
 	defer func() { _ = scraper.Close() }()

@@ -9,6 +9,7 @@ tmp/*
 CLAUDE.md
 
 internal/scraper/bank/bbva/testdata/recordings/
+!internal/credmgr/static/*.png
 
 bin/
 /api

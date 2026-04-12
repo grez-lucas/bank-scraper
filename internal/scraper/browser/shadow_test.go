@@ -14,6 +14,10 @@ import (
 func setupPage(t *testing.T) *rod.Page {
 	t.Helper()
 
+	if testing.Short() {
+		t.Skip("requires browser")
+	}
+
 	browser := rod.New().MustConnect()
 	t.Cleanup(func() { browser.MustClose() })
 
